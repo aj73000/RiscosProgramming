@@ -1,0 +1,45 @@
+#include<stdio.h>
+#include "Utils.h"
+
+osbool update(wimp_event_no event,wimp_block block)
+{
+    	event = wimp_poll(1,&block,NULL);
+    	switch(event)
+    	{
+	case wimp_OPEN_WINDOW_REQUEST:
+		wimp_open_window(&block.open);
+		break;
+	case wimp_CLOSE_WINDOW_REQUEST:
+		wimp_close_window(block.close.w);
+		return TRUE;
+		break;
+    	case wimp_USER_MESSAGE:
+    	case wimp_USER_MESSAGE_RECORDED:
+      	if(block.message.action == message_QUIT)
+        	return TRUE;
+      	break;
+	}
+	return FALSE;
+}
+int main()
+{
+  wimp_event_no event;
+  wimp_block block;
+  osbool quit = FALSE;
+  wimp_window *window;
+  int numIcons = 0;
+
+  wimp_initialise(wimp_VERSION_RO3,"Example App",NULL,NULL);
+  buildWindow(&window,0);
+  loadWindowIntoBlock(&window,&block);
+  wimp_open_window(&block.open);
+
+  while(!quit)
+  {
+    quit = update(event,block);
+  }
+
+  free(window);
+  wimp_close_down(0);
+  return 0;
+}

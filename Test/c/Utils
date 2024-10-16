@@ -1,0 +1,49 @@
+#include "Utils.h"
+
+void buildWindow(wimp_window ** window,int numIcons)
+{
+  (*window) = malloc(sizeof(wimp_(*window)) + sizeof(wimp_icon) * numIcons);
+  (*window)->visible.x0 = 750;
+  (*window)->visible.y0 = 250;
+  (*window)->visible.x1 = 2100;
+  (*window)->visible.y1 = 1700;
+  
+  (*window)->xscroll = 0;
+  (*window)->yscroll = 0;
+  (*window)->next = wimp_TOP;
+  (*window)->flags = wimp_WINDOW_MOVEABLE | wimp_WINDOW_AUTO_REDRAW |
+		  wimp_WINDOW_BACK_ICON | wimp_WINDOW_CLOSE_ICON |
+		  wimp_WINDOW_TITLE_ICON |wimp_WINDOW_HSCROLL |
+		  wimp_WINDOW_VSCROLL | wimp_WINDOW_TOGGLE_ICON |
+		  wimp_WINDOW_SIZE_ICON | wimp_WINDOW_NEW_FORMAT;
+
+  (*window)->title_fg = wimp_COLOUR_BLACK;
+  (*window)->title_bg = wimp_COLOUR_LIGHT_GREY;
+  (*window)->work_fg = wimp_COLOUR_BLACK;
+  (*window)->work_bg = wimp_COLOUR_LIGHT_GREY; 
+  (*window)->scroll_outer = wimp_COLOUR_MID_LIGHT_GREY;
+  (*window)->scroll_inner = wimp_COLOUR_VERY_LIGHT_GREY;
+
+  (*window)->extent.x0 = 0;
+  (*window)->extent.y0 = -1200;
+  (*window)->extent.x1 = 1600;
+  (*window)->extent.y1 = 0;
+  
+  (*window)->title_flags = wimp_ICON_TEXT | wimp_ICON_HCENTRED |
+			wimp_ICON_VCENTRED;
+  (*window)->work_flags = wimp_BUTTON_CLICK << wimp_ICON_BUTTON_TYPE_SHIFT;
+  (*window)->sprite_area = 0;
+  (*window)->xmin = 0;
+  (*window)->ymin = 0;
+  strncpy((*window)->title_data.text,"Screen",12);
+  (*window)->icon_count = 0;
+}
+
+void loadWindowIntoBlock(wimp_window **window,wimp_block *block)
+{
+  block->open.w = wimp_create_window(*window);
+  block->open.visible = (*window)->visible;
+  block->open.xscroll = (*window)->xscroll;
+  block->open.yscroll = (*window)->yscroll;
+  block->open.next = (*window)->next;
+}
