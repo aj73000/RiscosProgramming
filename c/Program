@@ -1,26 +1,49 @@
-#include<stdio.h>
 #include "Utils.h"
 
-osbool update(wimp_event_no event,wimp_block block)
+#define NUM_POINTS 360
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
+void draw_fill_circle(int cx, int cy, int radius) 
 {
-    	event = wimp_poll(1,&block,NULL);
+	os_plot(152,cx,cy);
+}
+
+osbool update(wimp_event_no event,wimp_block* block)
+{
     	switch(event)
     	{
+	case wimp_REDRAW_WINDOW_REQUEST:
+	{
+ 		wimp_draw draw;
+ 		draw.w = block->redraw.w;
+ 		draw.box = block->redraw.box;
+ 		while (wimp_redraw_window(&draw))
+ 		{
+			draw_fill_circle(100, 100, 50);
+ 			wimp_get_rectangle(&draw);
+		 }
+		return TRUE;
+		break;
+	}
 	case wimp_OPEN_WINDOW_REQUEST:
-		wimp_open_window(&block.open);
+		wimp_open_window(&block->open);
+		wimp_force_redraw(block->open.w, 0, 0, 8192, 8192);
 		break;
 	case wimp_CLOSE_WINDOW_REQUEST:
-		wimp_close_window(block.close.w);
+		wimp_close_window(block->close.w);
 		return TRUE;
 		break;
     	case wimp_USER_MESSAGE:
     	case wimp_USER_MESSAGE_RECORDED:
-      	if(block.message.action == message_QUIT)
+      	if(block->message.action == message_QUIT)
         	return TRUE;
       	break;
 	}
 	return FALSE;
 }
+
 int main()
 {
   wimp_event_no event;
@@ -36,7 +59,9 @@ int main()
 
   while(!quit)
   {
-    quit = update(event,block);
+    event = wimp_poll(2,&block,NULL);
+    quit = update(event,&block);
+    //quit = TRUE;
   }
 
   free(window);
