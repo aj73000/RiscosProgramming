@@ -7,6 +7,7 @@
 
 void draw_fill_circle(int cx, int cy, int radius) 
 {
+	os_set_colour(0,os_COLOUR_RED);
 	os_plot(152,cx,cy);
 }
 
@@ -14,57 +15,88 @@ osbool update(wimp_event_no event,wimp_block* block)
 {
     	switch(event)
     	{
-	case wimp_REDRAW_WINDOW_REQUEST:
-	{
- 		wimp_draw draw;
- 		draw.w = block->redraw.w;
- 		draw.box = block->redraw.box;
- 		while (wimp_redraw_window(&draw))
- 		{
-			draw_fill_circle(100, 100, 50);
- 			wimp_get_rectangle(&draw);
-		 }
-		return TRUE;
-		break;
-	}
-	case wimp_OPEN_WINDOW_REQUEST:
-		wimp_open_window(&block->open);
-		wimp_force_redraw(block->open.w, 0, 0, 8192, 8192);
-		break;
-	case wimp_CLOSE_WINDOW_REQUEST:
-		wimp_close_window(block->close.w);
-		return TRUE;
-		break;
-    	case wimp_USER_MESSAGE:
-    	case wimp_USER_MESSAGE_RECORDED:
-      	if(block->message.action == message_QUIT)
-        	return TRUE;
-      	break;
-	}
+			case wimp_REDRAW_WINDOW_REQUEST:
+			{
+				printf("REDRAW_WINDOW_REQUEST received.\n");
+				wimp_draw draw;
+				draw.w = block->redraw.w;
+				draw.box = block->redraw.box;
+				while (wimp_redraw_window(&draw))
+				{
+					draw_fill_circle(0, 0, 50);
+					wimp_get_rectangle(&draw);
+				 }
+			}
+			break;
+			case wimp_OPEN_WINDOW_REQUEST:
+				printf("OPEN_WINDOW_REQUEST received.\n");
+				wimp_open_window(&block->open);
+				break;
+			case wimp_CLOSE_WINDOW_REQUEST:
+				printf("CLOSE_WINDOW_REQUEST received.\n");
+				wimp_close_window(block->close.w);
+				return TRUE;
+			case wimp_USER_MESSAGE:
+			case wimp_USER_MESSAGE_RECORDED:
+				if(block->message.action == message_QUIT){
+					printf("QUIT message received.\n");
+					return TRUE;
+				}
+				break;
+		}
 	return FALSE;
 }
 
 int main()
 {
-  wimp_event_no event;
-  wimp_block block;
-  osbool quit = FALSE;
-  wimp_window *window;
-  int numIcons = 0;
+	// Initialize log file
+	FILE *log_file = fopen("debug_log.txt", "w");
+	if (log_file == NULL)
+	{ 
+		perror("Error opening log file");
+		return EXIT_FAILURE;
+	} 
+	stdout = log_file;
+	stderr = log_file;
+  
+	printf("Starting Application\n");
+  
+	wimp_event_no event;
+	wimp_block block;
+	osbool quit = FALSE;
+	wimp_window *window;
+	int numIcons = 1;
 
-  wimp_initialise(wimp_VERSION_RO3,"Example App",NULL,NULL);
-  buildWindow(&window,0);
-  loadWindowIntoBlock(&window,&block);
-  wimp_open_window(&block.open);
+	wimp_initialise(wimp_VERSION_RO3,"Example App",NULL,NULL);
+	buildWindow(&window,numIcons);
+	loadWindowIntoBlock(&window,&block);
+  
+	wimp_icon_create icon_definition;
 
-  while(!quit)
-  {
-    event = wimp_poll(2,&block,NULL);
-    quit = update(event,&block);
-    //quit = TRUE;
-  }
+    icon_definition.w = block.open.w;
+    icon_definition.icon.extent.x0 = 0;
+    icon_definition.icon.extent.y0 = 0;
+    icon_definition.icon.extent.x1 = 1600;
+    icon_definition.icon.extent.y1 = 1600;
+    icon_definition.icon.flags = wimp_ICON_TEXT | wimp_ICON_BORDER |
+                    wimp_ICON_HCENTRED | wimp_ICON_VCENTRED |
+                    (wimp_COLOUR_BLACK << wimp_ICON_FG_COLOUR_SHIFT);
+					
+    strncpy(icon_definition.icon.data.text, "Icon", 12);
 
-  free(window);
-  wimp_close_down(0);
-  return 0;
+    wimp_create_icon(&icon_definition);
+	
+	wimp_open_window(&block.open);
+  
+	while(!quit)
+	{
+		event = wimp_poll(2,&block,NULL);
+		quit = update(event,&block);
+		//quit = TRUE;
+	}
+
+	free(window);
+	wimp_close_down(0);
+	fclose(log_file);
+	return 0;
 }

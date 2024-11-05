@@ -3,10 +3,10 @@
 void buildWindow(wimp_window ** window,int numIcons)
 {
   (*window) = malloc(sizeof(wimp_(*window)) + sizeof(wimp_icon) * numIcons);
-  (*window)->visible.x0 = 750;
-  (*window)->visible.y0 = 250;
-  (*window)->visible.x1 = 2100;
-  (*window)->visible.y1 = 1700;
+  (*window)->visible.x0 = 0;
+  (*window)->visible.y0 = 0;
+  (*window)->visible.x1 = 1600;
+  (*window)->visible.y1 = 1600;
   
   (*window)->xscroll = 0;
   (*window)->yscroll = 0;
@@ -25,9 +25,9 @@ void buildWindow(wimp_window ** window,int numIcons)
   (*window)->scroll_inner = wimp_COLOUR_VERY_LIGHT_GREY;
 
   (*window)->extent.x0 = 0;
-  (*window)->extent.y0 = -1200;
+  (*window)->extent.y0 = 0;
   (*window)->extent.x1 = 1600;
-  (*window)->extent.y1 = 0;
+  (*window)->extent.y1 = 1600;
   
   (*window)->title_flags = wimp_ICON_TEXT | wimp_ICON_HCENTRED |
 			wimp_ICON_VCENTRED;
@@ -36,7 +36,7 @@ void buildWindow(wimp_window ** window,int numIcons)
   (*window)->xmin = 0;
   (*window)->ymin = 0;
   strncpy((*window)->title_data.text,"Screen",12);
-  (*window)->icon_count = 0;
+  (*window)->icon_count = numIcons;
 }
 
 void loadWindowIntoBlock(wimp_window **window,wimp_block *block)
