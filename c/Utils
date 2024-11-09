@@ -11,11 +11,11 @@ void buildWindow(wimp_window ** window,int numIcons)
   (*window)->xscroll = 0;
   (*window)->yscroll = 0;
   (*window)->next = wimp_TOP;
-  (*window)->flags = wimp_WINDOW_MOVEABLE | wimp_WINDOW_AUTO_REDRAW |
+  (*window)->flags = wimp_WINDOW_MOVEABLE | //wimp_WINDOW_AUTO_REDRAW |
 		  wimp_WINDOW_BACK_ICON | wimp_WINDOW_CLOSE_ICON |
 		  wimp_WINDOW_TITLE_ICON |wimp_WINDOW_HSCROLL |
 		  wimp_WINDOW_VSCROLL | wimp_WINDOW_TOGGLE_ICON |
-		  wimp_WINDOW_SIZE_ICON | wimp_WINDOW_NEW_FORMAT;
+		  wimp_WINDOW_SIZE_ICON | wimp_WINDOW_NEW_FORMAT | wimp_WINDOW_BOUNDED;
 
   (*window)->title_fg = wimp_COLOUR_BLACK;
   (*window)->title_bg = wimp_COLOUR_LIGHT_GREY;
@@ -29,8 +29,9 @@ void buildWindow(wimp_window ** window,int numIcons)
   (*window)->extent.x1 = 1600;
   (*window)->extent.y1 = 1600;
   
-  (*window)->title_flags = wimp_ICON_TEXT | wimp_ICON_HCENTRED |
-			wimp_ICON_VCENTRED;
+  (*window)->title_flags = wimp_ICON_TEXT 
+						| wimp_ICON_HCENTRED 
+						|wimp_ICON_VCENTRED;
   (*window)->work_flags = wimp_BUTTON_CLICK << wimp_ICON_BUTTON_TYPE_SHIFT;
   (*window)->sprite_area = 0;
   (*window)->xmin = 0;
