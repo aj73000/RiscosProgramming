@@ -2,13 +2,39 @@
 
 FILE *logFile;
 
-void draw_fill_circle(int cx, int cy, int radius) 
+typedef struct RenderBox
 {
+	int minX;
+	int minY;
+	int maxX;
+	int maxY;
+}RenderBox;
+
+typedef struct Circle
+{
+	int posx;
+	int posy;
+	int radius;
 	//0xBBGGRRu
-	int colour = 0x0000FFu;
+	int colour;
+	//renderBox renderBox;
+	
+}Circle;
+
+Circle circles[] = {{400,400,100,0x0000FFu},{400,400,50,0xFF0000u}};
+
+void draw_fill_circle(int cx, int cy, int radius,int colour) 
+{
 	os_set_colour(0,colour);
 	os_plot(0+4, cx, cy);
 	os_plot(152+5,cx,cy+radius);
+}
+
+int random(int min, int max)
+ {  
+    // Find the random number in the range [min, max]
+    int rd_num = rand() % (max - min + 1) + min;
+	return rd_num;
 }
 
 osbool update(wimp_event_no event,wimp_block* block)
@@ -17,7 +43,8 @@ osbool update(wimp_event_no event,wimp_block* block)
     {
 		case wimp_REDRAW_WINDOW_REQUEST:
 			fprintf(logFile, "REDRAW_WINDOW_REQUEST received.\n"); 
-			fflush(logFile);  
+			fflush(logFile);
+			
 			wimp_draw draw;
 			draw.w = block->redraw.w;
 			draw.box = block->redraw.box;
@@ -25,7 +52,15 @@ osbool update(wimp_event_no event,wimp_block* block)
 			xwimp_redraw_window(&draw, &more);
 			while (more)
 			{
-				draw_fill_circle(400, 400, 100);
+				// Theses are the position of the top left of the screen
+				int screenX = (*block).open.visible.x0;
+				int screenY = (*block).open.visible.y0;
+				for(int i = 0 ; i < sizeof(circles)/sizeof(Circle); i++ )
+				{
+					draw_fill_circle(circles[i].posx+screenX, circles[i].posy+screenY, circles[i].radius,circles[i].colour);
+					circles[i].posx = circles[i].posx<1600 ? circles[i].posx + 1 : 0;
+					//circles[i].posy = random(0,1600);
+				}
 				xwimp_get_rectangle(&draw, &more);
 			}
 			break;
@@ -70,11 +105,12 @@ int main()
     osbool quit = FALSE;
     wimp_window *window;
     int numIcons = 1;
+	int timer = 0;
 
     wimp_initialise(wimp_VERSION_RO3,"Example App",NULL,NULL);
     buildWindow(&window,numIcons);
     loadWindowIntoBlock(&window,&block);
-  
+	
     //wimp_icon_create icon_definition;
 
 	//icon_definition.w = block.open.w;
@@ -105,10 +141,18 @@ int main()
 	
     while(!quit)
     {
-        event = wimp_poll(0,&block,NULL);
-        quit = update(event,&block);
-		//wimp_force_redraw(block.open.w,0,0,1600,1600);
-        //quit = TRUE;
+		if(timer > 50)
+		{
+			timer = 0;
+			wimp_force_redraw(block.open.w,0,0,1600,800);
+		}
+		else
+		{
+			event = wimp_poll(0,&block,NULL);
+		}
+		timer++;
+		quit = update(event,&block);
+		//quit = TRUE;
     }
 	
     free(window);
