@@ -17,11 +17,13 @@ typedef struct Circle
 	int radius;
 	//0xBBGGRRu
 	int colour;
-	//renderBox renderBox;
+	int redraw;
+	RenderBox renderBox;
 	
 }Circle;
 
-Circle circles[] = {{400,400,100,0x0000FFu},{400,400,50,0xFF0000u}};
+Circle circles[] = {{400,400,50,0x0000FFu,0,{400-110,400-110,400+110,400+110}}
+					,{700,400,50,0xFF0000u,0,{700-55,400-55,700+55,400+55}}};
 
 void draw_fill_circle(int cx, int cy, int radius,int colour) 
 {
@@ -42,28 +44,51 @@ osbool update(wimp_event_no event,wimp_block* block)
     switch(event)
     {
 		case wimp_REDRAW_WINDOW_REQUEST:
-			fprintf(logFile, "REDRAW_WINDOW_REQUEST received.\n"); 
-			fflush(logFile);
+		{//fprintf(logFile, "REDRAW_WINDOW_REQUEST received.\n"); 
+			//fflush(logFile);
 			
 			wimp_draw draw;
 			draw.w = block->redraw.w;
 			draw.box = block->redraw.box;
+			
+			// Theses are the position of the bottom left of the screen
+			int screenX = (*block).open.visible.x0;
+			int screenY = (*block).open.visible.y0;
+			
 			int more;
 			xwimp_redraw_window(&draw, &more);
+			for(int i = 0 ; i < sizeof(circles)/sizeof(Circle); i++ )
+			{
+				circles[i].posx = circles[i].posx < 1600 ? circles[i].posx + 1 : 0;
+				
+				circles[i].renderBox.minX = circles[i].posx - circles[i].radius - 10;
+				circles[i].renderBox.minY = circles[i].posy - circles[i].radius - 10;
+				circles[i].renderBox.maxX = circles[i].posx + circles[i].radius + 10;
+				circles[i].renderBox.maxY = circles[i].posy + circles[i].radius + 10;
+				
+				//Reset the circle redraw
+				circles[i].redraw = 0;
+			}
 			while (more)
 			{
-				// Theses are the position of the top left of the screen
-				int screenX = (*block).open.visible.x0;
-				int screenY = (*block).open.visible.y0;
-				for(int i = 0 ; i < sizeof(circles)/sizeof(Circle); i++ )
+				for(int i = 0 ; i < sizeof(circles)/sizeof(Circle); i++)
 				{
-					draw_fill_circle(circles[i].posx+screenX, circles[i].posy+screenY, circles[i].radius,circles[i].colour);
-					circles[i].posx = circles[i].posx<1600 ? circles[i].posx + 1 : 0;
-					//circles[i].posy = random(0,1600);
+					if(!circles[i].redraw)
+					{
+						if(circles[i].posx >= (draw.clip.x0 - screenX) && circles[i].posx <= (draw.clip.x1 - screenX))
+						{
+							if(circles[i].posy >= (draw.clip.y0-screenY) && circles[i].posy <= (draw.clip.y1 - screenY))
+							{
+								circles[i].redraw = 1;
+								//Check if the circle is in the rectangle and if so draw it and set its redraw
+								draw_fill_circle(circles[i].posx+screenX, circles[i].posy+screenY, circles[i].radius,circles[i].colour);
+							}
+						}
+					}
 				}
 				xwimp_get_rectangle(&draw, &more);
 			}
-			break;
+		break;}
 		case wimp_OPEN_WINDOW_REQUEST:
 			fprintf(logFile, "OPEN_WINDOW_REQUEST received.\n");                
 			fflush(logFile);
@@ -144,7 +169,13 @@ int main()
 		if(timer > 50)
 		{
 			timer = 0;
-			wimp_force_redraw(block.open.w,0,0,1600,800);
+			
+			//Dirty certain parts of the window
+			for(int i = 0 ; i < sizeof(circles)/sizeof(Circle); i++ )
+			{
+				wimp_force_redraw(block.open.w,circles[i].renderBox.minX,circles[i].renderBox.minY,
+												circles[i].renderBox.maxX,circles[i].renderBox.maxY);
+			}
 		}
 		else
 		{
