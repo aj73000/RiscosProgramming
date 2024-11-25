@@ -13,8 +13,8 @@ void buildWindow(wimp_window ** window,int numIcons)
   (*window)->next = wimp_TOP;
   (*window)->flags = wimp_WINDOW_MOVEABLE | //wimp_WINDOW_AUTO_REDRAW |
 		  wimp_WINDOW_BACK_ICON | wimp_WINDOW_CLOSE_ICON |
-		  wimp_WINDOW_TITLE_ICON |wimp_WINDOW_HSCROLL |
-		  wimp_WINDOW_VSCROLL | wimp_WINDOW_TOGGLE_ICON |
+		  wimp_WINDOW_TITLE_ICON //|wimp_WINDOW_HSCROLL |
+		  /*wimp_WINDOW_VSCROLL */ | wimp_WINDOW_TOGGLE_ICON |
 		  wimp_WINDOW_SIZE_ICON | wimp_WINDOW_NEW_FORMAT | wimp_WINDOW_BOUNDED;
 
   (*window)->title_fg = wimp_COLOUR_BLACK;
