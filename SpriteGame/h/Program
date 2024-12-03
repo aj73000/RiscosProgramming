@@ -1,7 +1,25 @@
+//Game Logic===============================================
+typedef struct 
+{                                       
+   //osspriteop_header *sprite;
+
+   int x, y;   // coordinates of the sprite
+
+   //int dx, dy;  // velocity of invader
+
+   //int frame;
+}
+GameState;
+                                    
+extern GameState state;
+
+void initialiseGame(GameState *state);
+                
+void updateGame(void *ws,wimp_block* block);
 //Timer====================================================
 void initialiseTimer();
 
-void setTimer(int cs, void (*callback)(void*), void *ws);
+void setTimer(int cs, void (*callback)(void*,wimp_block*), void *ws);
 
 void updateTimer();
 

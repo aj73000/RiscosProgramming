@@ -6,12 +6,58 @@
 
 FILE *logFile;
 
+//Game Logic======================================================================
+GameState state;
 
+void initialiseGame(GameState *state)
+{
+
+   state->x      = 320 << 8;
+   state->y      = 256 << 8;
+
+   setTimer(64, updateGame, (void*)state);
+}
+
+void updateGame(void *ws,wimp_block* block)
+{                                                                
+   GameState* state = (GameState*)ws;
+   //state->frame++; 
+	
+   //if (state->frame%4 == 0)
+   //{
+      //state->sprite = state->sprite == invader1 ? invader2 : invader1; 
+   //}
+
+   //if ((state->x >> 8) >= 640 - 72)
+   //{
+    //  state->dx = -(2 << 8);
+   //}                        
+   //else if ((state->x >> 8) < 0)
+   //{
+   //   state->dx = +(2 << 8);
+   //}  
+
+   //if ((state->y >> 8) >= 512 - 68)
+   //{
+   //   state->dy = -(2 << 8);
+   //}                        
+   //else if ((state->y >> 8) < 0)
+   //{
+   //   state->dy = +(2 << 8);
+   //} 
+
+   //state->x += state->dx;
+   //state->y += state->dy;
+
+   wimp_force_redraw(block->open.w, 0, 0, 640, +512);
+
+   setTimer(4, updateGame, ws);
+}
 //Timer===========================================================================
 os_t timer;
 
 //Callback function pointer
-void (*timerCallback)(void*);
+void (*timerCallback)(void*,wimp_block*);
 
 void *timerWorkspace;
 
@@ -22,14 +68,14 @@ void initialiseTimer()
    timerWorkspace = NULL;
 }
 //Set the timer values
-void setTimer(int cs, void (*callback)(void*), void *ws)
+void setTimer(int cs, void (*callback)(void*,wimp_block*), void *ws)
 {
    timer          = os_read_monotonic_time() + cs;
    timerCallback  = callback;
    timerWorkspace = ws;   
 }
 
-void updateTimer()
+void updateTimer(wimp_block* block)
 {
    if (timer > 0)
    {
@@ -39,7 +85,7 @@ void updateTimer()
       {
          timer = 0;
 
-         timerCallback(timerWorkspace);
+         timerCallback(timerWorkspace,block);
       }
    }
 }
@@ -131,7 +177,7 @@ osspriteop_area* loadSpriteFile(const char *filename)
    fflush(logFile);
 
    size += sizeof(int);
-
+   
    osspriteop_area *area = malloc(size);
 
    area->size  = size;
@@ -139,6 +185,7 @@ osspriteop_area* loadSpriteFile(const char *filename)
 
 	//Load sprite file
 	e = xosspriteop_load_sprite_file(osspriteop_USER_AREA, area, filename);
+	
 
    if (e != NULL)
    {
@@ -172,7 +219,7 @@ osspriteop_area* loadSpriteFile(const char *filename)
    factors.xmul = 1<<(modeInfo.info.xEigFactor-1);
    factors.ymul = 1<<(modeInfo.info.yEigFactor);
    factors.xdiv = 1;
-   factors.ydiv = 1;         
+   factors.ydiv = 1; 
 
    e = xcolourtrans_generate_table_for_sprite(area,  
                                        (osspriteop_id)"idleleft",    
@@ -193,7 +240,27 @@ osspriteop_area* loadSpriteFile(const char *filename)
    }
 
    fprintf(logFile, "colourtrans table size = %d\n", size);
-   fflush(logFile); 
+   fflush(logFile);
+   
+   transTab = malloc(size);
+
+   e = xcolourtrans_generate_table_for_sprite(area, 
+                                    (osspriteop_id)"idleleft",   
+                                    (os_mode)-1,   
+                                    (os_palette*)-1,   
+                                    transTab,
+                                    colourtrans_CURRENT_IF_ABSENT |
+                                    colourtrans_RETURN_WIDE_ENTRIES,
+                                    NULL,
+                                    NULL,
+                                    &size);
+
+   if (e != NULL)
+   {
+      fprintf(logFile, "xcolourtrans_generate_table #2 failed\n"
+         "   errnum = %d: message = '%s'\n", e->errnum, e->errmess);
+      fflush(logFile);
+   }
    // all done
 
    fprintf(logFile, "finished loading sprites\n");
@@ -209,8 +276,9 @@ osbool update(wimp_event_no event,wimp_block* block)
     {
 		case wimp_REDRAW_WINDOW_REQUEST:
 		{
-			//fprintf(logFile, "REDRAW_WINDOW_REQUEST received.\n"); 
-			//fflush(logFile);			
+			fprintf(logFile, "REDRAW_WINDOW_REQUEST received.\n"); 
+			fflush(logFile);
+			
 			wimp_draw draw;
 			draw.w = block->redraw.w;
 			draw.box = block->redraw.box;
@@ -225,12 +293,12 @@ osbool update(wimp_event_no event,wimp_block* block)
 				os_error *e = xosspriteop_put_sprite_scaled(osspriteop_PTR,
 						area,
 						(osspriteop_id)"idleleft",
-						100,
-						100,
+						screenX + (state.x >> 8),
+						screenY + (state.y >> 8),
 						os_ACTION_OVERWRITE |
 						osspriteop_GIVEN_WIDE_ENTRIES | 0x8,
 						&factors,
-						NULL);
+						transTab);
 
 				if (e != NULL)
 				{
@@ -287,11 +355,12 @@ int main()
 
     wimp_initialise(wimp_VERSION_RO3,"Example App",NULL,NULL);
 	updateModeInfo();
-	area = loadSpriteFile("C/SpriteProgram/Images/ScroogeMcDuck/Sprites/IdleLeft");
+	area = loadSpriteFile("Images.ScroogeMcDuck.Sprites.IdleLeft");
     buildWindow(&window,numIcons);
     loadWindowIntoBlock(&window,&block);
 	
 	initialiseTimer();
+	initialiseGame(&state);
 		
 	fprintf(logFile,"Opening window...\n");
 	fflush(logFile);
@@ -307,12 +376,11 @@ int main()
 		event = wimp_poll(0,&block,NULL);
 		if (event == wimp_NULL_REASON_CODE)
 		{
-			updateTimer();
+			updateTimer(&block);
 		}
 		else
 		{
-			quit = update(event,&block);
-			//quit = TRUE;			
+			quit = update(event,&block);	
 		}		
     }
 	
