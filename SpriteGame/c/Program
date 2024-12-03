@@ -292,7 +292,7 @@ osbool update(wimp_event_no event,wimp_block* block)
 			{
 				os_error *e = xosspriteop_put_sprite_scaled(osspriteop_PTR,
 						area,
-						(osspriteop_id)"idleleft",
+						(osspriteop_id)duckIdle,
 						screenX + (state.x >> 8),
 						screenY + (state.y >> 8),
 						os_ACTION_OVERWRITE |
