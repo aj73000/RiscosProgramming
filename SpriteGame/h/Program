@@ -1,0 +1,17 @@
+//Timer====================================================
+void initialiseTimer();
+
+void setTimer(int cs, void (*callback)(void*), void *ws);
+
+void updateTimer();
+
+//Sprites===================================================
+extern osspriteop_area *area;
+
+extern osspriteop_header *duckIdle;
+
+extern os_factors factors;
+
+extern osspriteop_trans_tab *transTab;
+
+osspriteop_area* loadSpriteFile(const char *filename);

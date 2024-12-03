@@ -1,0 +1,323 @@
+#include "Utils.h"
+#include "oslib/osfile.h"
+#include "oslib/osspriteop.h"                    
+#include "oslib/colourtrans.h"
+#include "Program.h"
+
+FILE *logFile;
+
+
+//Timer===========================================================================
+os_t timer;
+
+//Callback function pointer
+void (*timerCallback)(void*);
+
+void *timerWorkspace;
+
+void initialiseTimer()
+{         
+   timer          = 0;
+   timerCallback  = NULL;
+   timerWorkspace = NULL;
+}
+//Set the timer values
+void setTimer(int cs, void (*callback)(void*), void *ws)
+{
+   timer          = os_read_monotonic_time() + cs;
+   timerCallback  = callback;
+   timerWorkspace = ws;   
+}
+
+void updateTimer()
+{
+   if (timer > 0)
+   {
+      os_t time = os_read_monotonic_time();
+
+      if (time >= timer)
+      {
+         timer = 0;
+
+         timerCallback(timerWorkspace);
+      }
+   }
+}
+//Screen Mode Info=================================================================
+typedef union
+{        
+   int numbers[14];
+
+   struct
+   {    
+      int modeFlags,
+          scrRCol,
+          scrBRow,
+          nColour,
+          xEigFactor,
+          yEigFactor,
+          lineLength,  
+          screenSize,
+          yShiftSize,
+          log2bpp,
+          log2bpc,
+          xWindLimit,
+          yWindLimit,
+          minScreenBanks;
+   }
+   info;
+}
+ModeInfo;                                 
+
+ModeInfo modeInfo;
+         
+void updateModeInfo()
+{                                      
+   for (int i = 0; i < 15; i++)
+   {
+      modeInfo.numbers[i] = i;
+   }
+
+   modeInfo.numbers[14] = -1;
+
+   os_error *e = xos_read_vdu_variables((os_vdu_var_list*)modeInfo.numbers, 
+                                        modeInfo.numbers);
+
+   if (e != NULL)
+   {
+      fprintf(logFile, "VDU variables:\n"
+         "   xEigFactor = %d\n" 
+         "   yEigFactor = %d\n"
+         "   xWindLimit = %d\n"
+         "   yWindLimit = %d\n", 
+         modeInfo.info.xEigFactor, 
+         modeInfo.info.yEigFactor,
+         modeInfo.info.xWindLimit,
+         modeInfo.info.yWindLimit);
+         fflush(logFile);
+   }
+}
+
+//Sprites==========================================================================
+osspriteop_area *area;
+
+osspriteop_header *duckIdle;
+
+os_factors factors;
+
+osspriteop_trans_tab *transTab;
+
+osspriteop_area* loadSpriteFile(const char *filename)
+{                                                       
+   int size;
+
+   bits type;
+   
+   fprintf(logFile, "loading sprites...\n"); 
+   fflush(logFile);
+
+   fileswitch_object_type objType;
+   
+   os_error *e = xosfile_read_stamped_no_path(filename, &objType, NULL, NULL, &size, NULL, &type);
+   
+   if (e != NULL)
+   {
+      fprintf(logFile, "Failed Getting Size\n"
+         "   errnum = %d: message = '%s'\n", e->errnum, e->errmess);
+      fflush(logFile);
+   }
+   
+   fprintf(logFile, "sprite file size = %d\n", size);
+   fflush(logFile);
+
+   size += sizeof(int);
+
+   osspriteop_area *area = malloc(size);
+
+   area->size  = size;
+   area->first = 16;
+
+	//Load sprite file
+	e = xosspriteop_load_sprite_file(osspriteop_USER_AREA, area, filename);
+
+   if (e != NULL)
+   {
+	  free(area);
+      fprintf(logFile, "Failed Loading SpriteFile\n"
+         "   errnum = %d: message = '%s'\n", e->errnum, e->errmess);
+      fflush(logFile);
+	  return NULL;
+   }
+   
+   
+   // determine more efficient sprite pointer ids                               
+   
+   e = xosspriteop_select_sprite(osspriteop_USER_AREA, 
+                                     area, 
+                                     (osspriteop_id)"idleleft",
+                                     &duckIdle);
+
+
+   if (e != NULL)
+   {
+	  free(area);
+      fprintf(logFile, "selecting IdleLeft failed\n"
+         "   errnum = %d: message = '%s'\n", e->errnum, e->errmess);
+      fflush(logFile);
+	  return NULL;
+   }
+                        
+   // set up factors and translation table
+
+   factors.xmul = 1<<(modeInfo.info.xEigFactor-1);
+   factors.ymul = 1<<(modeInfo.info.yEigFactor);
+   factors.xdiv = 1;
+   factors.ydiv = 1;         
+
+   e = xcolourtrans_generate_table_for_sprite(area,  
+                                       (osspriteop_id)"idleleft",    
+                                       (os_mode)-1,   
+                                       (os_palette*)-1,    
+                                       NULL,
+                                       colourtrans_CURRENT_IF_ABSENT |
+                                       colourtrans_RETURN_WIDE_ENTRIES,
+                                       NULL,
+                                       NULL,
+                                       &size);
+
+   if (e != NULL)
+   {
+      fprintf(logFile, "xcolourtrans_generate_table #1 failed\n"
+         "   errnum = %d: message = '%s'\n", e->errnum, e->errmess);
+      fflush(logFile);
+   }
+
+   fprintf(logFile, "colourtrans table size = %d\n", size);
+   fflush(logFile); 
+   // all done
+
+   fprintf(logFile, "finished loading sprites\n");
+   fflush(logFile);
+   
+   return area;
+}
+
+//=================================================================================
+osbool update(wimp_event_no event,wimp_block* block)
+{
+    switch(event)
+    {
+		case wimp_REDRAW_WINDOW_REQUEST:
+		{
+			//fprintf(logFile, "REDRAW_WINDOW_REQUEST received.\n"); 
+			//fflush(logFile);			
+			wimp_draw draw;
+			draw.w = block->redraw.w;
+			draw.box = block->redraw.box;
+			
+			// Theses are the position of the bottom left of the screen
+			int screenX = (*block).open.visible.x0;
+			int screenY = (*block).open.visible.y0;
+			int more;
+			xwimp_redraw_window(&draw, &more);
+			while (more)
+			{
+				os_error *e = xosspriteop_put_sprite_scaled(osspriteop_PTR,
+						area,
+						(osspriteop_id)"idleleft",
+						100,
+						100,
+						os_ACTION_OVERWRITE |
+						osspriteop_GIVEN_WIDE_ENTRIES | 0x8,
+						&factors,
+						NULL);
+
+				if (e != NULL)
+				{
+					fprintf(logFile, "xosspriteop_put_sprite_scaled failed\n"
+					"   errnum = %d: message = '%s'\n", e->errnum, e->errmess);
+					fflush(logFile);
+				}
+
+				xwimp_get_rectangle(&draw, &more);
+			}
+			break;
+		}
+		case wimp_OPEN_WINDOW_REQUEST:
+			fprintf(logFile, "OPEN_WINDOW_REQUEST received.\n");                
+			fflush(logFile);
+			wimp_open_window(&block->open);
+			break;
+		case wimp_CLOSE_WINDOW_REQUEST:
+			fprintf(logFile, "CLOSE_WINDOW_REQUEST received.\n");                                         
+			fflush(logFile);
+			wimp_close_window(block->close.w);
+			return TRUE;
+		case wimp_USER_MESSAGE:
+		case wimp_USER_MESSAGE_RECORDED:
+			fprintf(logFile, "USER_MESSAGE_RECORDED received.\n");                            
+			fflush(logFile);
+			if(block->message.action == message_QUIT)
+			{
+				fprintf(logFile, "QUIT message received.\n");                                          
+				fflush(logFile);
+				return TRUE;
+			}
+			break;
+	}
+	return FALSE;
+}
+
+int main()
+{
+    // Initialize log file
+    logFile = fopen("logFile", "w");
+    if (logFile == NULL)
+    { 
+        perror("Error opening log file");
+        return EXIT_FAILURE;
+    }
+    fprintf(logFile, "Starting Application\n");
+  
+    wimp_event_no event;
+    wimp_block block;
+    osbool quit = FALSE;
+    wimp_window *window;
+    int numIcons = 0;
+
+    wimp_initialise(wimp_VERSION_RO3,"Example App",NULL,NULL);
+	updateModeInfo();
+	area = loadSpriteFile("C/SpriteProgram/Images/ScroogeMcDuck/Sprites/IdleLeft");
+    buildWindow(&window,numIcons);
+    loadWindowIntoBlock(&window,&block);
+	
+	initialiseTimer();
+		
+	fprintf(logFile,"Opening window...\n");
+	fflush(logFile);
+    os_error *err = xwimp_open_window(&block.open);
+    if (err != NULL)
+    {
+        fprintf(logFile, "msg = '%s'\n", err->errmess);
+        fflush(logFile);
+    }
+	
+    while(!quit)
+    {		
+		event = wimp_poll(0,&block,NULL);
+		if (event == wimp_NULL_REASON_CODE)
+		{
+			updateTimer();
+		}
+		else
+		{
+			quit = update(event,&block);
+			//quit = TRUE;			
+		}		
+    }
+	
+    free(window);
+    wimp_close_down(0);
+    fclose(logFile);
+    return 0;
+}
