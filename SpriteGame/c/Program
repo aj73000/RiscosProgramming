@@ -1,26 +1,13 @@
-#include "Utils.h"
-#include "oslib/osfile.h"
-#include "oslib/osspriteop.h"                    
-#include "oslib/colourtrans.h"
 #include "Program.h"
 
 FILE *logFile;
 
+//Store all the objects (player,enemies) create a dynamic array for this
+
+Object* objects[1];
 //Game Logic======================================================================
-GameState state;
-
-void initialiseGame(GameState *state)
-{
-
-   state->x      = 320 << 8;
-   state->y      = 256 << 8;
-
-   setTimer(64, updateGame, (void*)state);
-}
-
-void updateGame(void *ws,wimp_block* block)
+void updateGame(wimp_block* block)
 {                                                                
-   GameState* state = (GameState*)ws;
    //state->frame++; 
 	
    //if (state->frame%4 == 0)
@@ -48,31 +35,67 @@ void updateGame(void *ws,wimp_block* block)
 
    //state->x += state->dx;
    //state->y += state->dy;
+   for(int i=0;i<sizeof(objects)/sizeof(objects[0]);i++)
+   {
+	   wimp_force_redraw(block->open.w,objects[i]->renderBox.minX,objects[i]->renderBox.minY,
+		objects[i]->renderBox.maxX,objects[i]->renderBox.maxY);
+		
+		
+		//Update the postition and the renderBox for the objects
+		objects[i]->x = objects[i]->x > -50 ? objects[i]->x - 4 : 2400;
+		objects[i]->renderBox.minX = objects[i]->x - 50;
+		objects[i]->renderBox.minY = objects[i]->y - 50;
+		objects[i]->renderBox.maxX = objects[i]->x + 50;
+		objects[i]->renderBox.maxY = objects[i]->y + 150;
+   }
+   setTimer(4, updateGame);
+}
 
-   wimp_force_redraw(block->open.w, 0, 0, 640, +512);
+void processKeyPress(int keyCode)
+{
+   switch (keyCode)
+   {
+      case wimp_KEY_LEFT:
+      {                 
+         //state.dx = -2 << 8;
 
-   setTimer(4, updateGame, ws);
+         break;
+      }
+      case wimp_KEY_RIGHT:
+      {                   
+         //state.dx = +2 << 8;
+
+         break;
+      }
+      case wimp_KEY_UP:
+      {
+         //state.dy = +2 << 8;
+
+         break;
+      }
+      case wimp_KEY_DOWN:
+      {
+         //state.dy = -2 << 8;
+
+         break;
+      }
+   }         
 }
 //Timer===========================================================================
 os_t timer;
 
 //Callback function pointer
-void (*timerCallback)(void*,wimp_block*);
-
-void *timerWorkspace;
+void (*timerCallback)(wimp_block*);
 
 void initialiseTimer()
-{         
-   timer          = 0;
-   timerCallback  = NULL;
-   timerWorkspace = NULL;
+{
+   setTimer(64, updateGame);
 }
 //Set the timer values
-void setTimer(int cs, void (*callback)(void*,wimp_block*), void *ws)
+void setTimer(int cs, void (*callback)(wimp_block*))
 {
    timer          = os_read_monotonic_time() + cs;
-   timerCallback  = callback;
-   timerWorkspace = ws;   
+   timerCallback  = callback; 
 }
 
 void updateTimer(wimp_block* block)
@@ -85,7 +108,7 @@ void updateTimer(wimp_block* block)
       {
          timer = 0;
 
-         timerCallback(timerWorkspace,block);
+         timerCallback(block);
       }
    }
 }
@@ -143,6 +166,33 @@ void updateModeInfo()
          fflush(logFile);
    }
 }
+//Objects==========================================================================
+Object createObject(objectTypes type, int x, int y)
+{
+	Object obj;
+	obj.x = x;
+	obj.y = y;
+	obj.redraw = 0;
+	switch (type)
+	{
+		case PLAYER:
+		{
+			const char *images[1] = {"idleright"};
+			const int size = sizeof(images)/sizeof(images[0]);
+			RenderBox box = {x-50,y-50,x+50,y+150};
+			obj.renderBox = box;
+			loadSpriteFile("Images.ScroogeMcDuck.Sprites.Idle",&obj,images,size);
+			break;
+		}
+		case SPIDER:
+		{
+			break;
+		}
+		default: { fprintf(stderr, "Unknown object type\n"); break; }
+	}
+	
+	return obj;
+}
 
 //Sprites==========================================================================
 osspriteop_area *area;
@@ -153,8 +203,8 @@ os_factors factors;
 
 osspriteop_trans_tab *transTab;
 
-osspriteop_area* loadSpriteFile(const char *filename)
-{                                                       
+void loadSpriteFile(const char *filename,Object* obj,const char *imageNames[],const int imagesSize)
+{
    int size;
 
    bits type;
@@ -186,43 +236,45 @@ osspriteop_area* loadSpriteFile(const char *filename)
 	//Load sprite file
 	e = xosspriteop_load_sprite_file(osspriteop_USER_AREA, area, filename);
 	
-
    if (e != NULL)
    {
 	  free(area);
       fprintf(logFile, "Failed Loading SpriteFile\n"
          "   errnum = %d: message = '%s'\n", e->errnum, e->errmess);
       fflush(logFile);
-	  return NULL;
    }
    
    
-   // determine more efficient sprite pointer ids                               
+   // This may cause unknown behaviour may need to change
+   osspriteop_header *sprites[imagesSize];
    
-   e = xosspriteop_select_sprite(osspriteop_USER_AREA, 
-                                     area, 
-                                     (osspriteop_id)"idleleft",
-                                     &duckIdle);
-
-
-   if (e != NULL)
+   for(int i = 0; i < imagesSize ; i++)
    {
-	  free(area);
-      fprintf(logFile, "selecting IdleLeft failed\n"
-         "   errnum = %d: message = '%s'\n", e->errnum, e->errmess);
-      fflush(logFile);
-	  return NULL;
+	   // determine more efficient sprite pointer ids                               
+   
+		e = xosspriteop_select_sprite(osspriteop_USER_AREA, 
+								area, 
+                               (osspriteop_id)imageNames[i],
+                               &sprites[i]);
+
+		if (e != NULL)
+		{
+			free(area);
+			fprintf(logFile, "selecting %s failed\n"
+				"   errnum = %d: message = '%s'\n",imageNames[i], e->errnum, e->errmess);
+			fflush(logFile);
+		}
    }
-                        
+   
    // set up factors and translation table
 
    factors.xmul = 1<<(modeInfo.info.xEigFactor-1);
    factors.ymul = 1<<(modeInfo.info.yEigFactor);
    factors.xdiv = 1;
-   factors.ydiv = 1; 
+   factors.ydiv = 1;
 
    e = xcolourtrans_generate_table_for_sprite(area,  
-                                       (osspriteop_id)"idleleft",    
+                                       (osspriteop_id)imageNames[0],
                                        (os_mode)-1,   
                                        (os_palette*)-1,    
                                        NULL,
@@ -245,7 +297,7 @@ osspriteop_area* loadSpriteFile(const char *filename)
    transTab = malloc(size);
 
    e = xcolourtrans_generate_table_for_sprite(area, 
-                                    (osspriteop_id)"idleleft",   
+                                    (osspriteop_id)imageNames[0],
                                     (os_mode)-1,   
                                     (os_palette*)-1,   
                                     transTab,
@@ -266,7 +318,20 @@ osspriteop_area* loadSpriteFile(const char *filename)
    fprintf(logFile, "finished loading sprites\n");
    fflush(logFile);
    
-   return area;
+   
+   // Could be some issues here
+   //Set all the obj values
+   obj->area = area;
+   obj->transTab = transTab;
+   obj->spriteArraySize = imagesSize;
+   //Fix this issue
+   obj->currentSprite = sprites[0];
+   memcpy(obj->sprites, sprites, imagesSize * sizeof(sprites[0]));
+   free(sprites);
+}
+void getState(Object* obj)
+{
+	
 }
 
 //=================================================================================
@@ -274,6 +339,22 @@ osbool update(wimp_event_no event,wimp_block* block)
 {
     switch(event)
     {
+		case wimp_MOUSE_CLICK:
+		{
+			fprintf(logFile, "MOUSE_CLICK received.\n"); 
+			fflush(logFile);
+
+			break;
+		}
+		case wimp_KEY_PRESSED:
+		{
+			fprintf(logFile, "KEY_PRESSED received (%#x).\n", block->key.c);
+			fflush(logFile);
+
+			processKeyPress(block->key.c);
+
+			break;
+		}
 		case wimp_REDRAW_WINDOW_REQUEST:
 		{
 			fprintf(logFile, "REDRAW_WINDOW_REQUEST received.\n"); 
@@ -290,15 +371,41 @@ osbool update(wimp_event_no event,wimp_block* block)
 			xwimp_redraw_window(&draw, &more);
 			while (more)
 			{
-				os_error *e = xosspriteop_put_sprite_scaled(osspriteop_PTR,
-						area,
-						(osspriteop_id)duckIdle,
-						screenX + (state.x >> 8),
-						screenY + (state.y >> 8),
-						os_ACTION_OVERWRITE |
-						osspriteop_GIVEN_WIDE_ENTRIES | 0x8,
-						&factors,
-						transTab);
+				os_error *e =  NULL;
+				for(int i=0;i<sizeof(objects)/sizeof(objects[0]);i++)
+				{
+					//Check if the sprite is on the screen first
+					if(!objects[i]->redraw)
+					{
+						if(objects[i]->x >= (draw.clip.x0 - screenX-50) && objects[i]->x <= (draw.clip.x1 - screenX))
+						{
+							if(objects[i]->y >= (draw.clip.y0-screenY) && objects[i]->y <= (draw.clip.y1 - screenY))
+							{
+								e = xosspriteop_put_sprite_scaled(osspriteop_PTR,
+									objects[i]->area,
+									(osspriteop_id)objects[i]->currentSprite,
+									screenX + objects[i]->x,
+									screenY + objects[i]->y,
+									os_ACTION_OVERWRITE |
+									osspriteop_GIVEN_WIDE_ENTRIES | 0x8,
+									&factors,
+									objects[i]->transTab);
+									
+								//Change to 1
+								objects[i]->redraw = 0;
+							}
+						}
+					}
+				}
+				//os_error *e = xosspriteop_put_sprite_scaled(osspriteop_PTR,
+				//		area,
+				//		(osspriteop_id)duckIdle,
+				//		screenX + 100,
+				//		screenY + 100,
+				//		os_ACTION_OVERWRITE |
+				//		osspriteop_GIVEN_WIDE_ENTRIES | 0x8,
+				//		&factors,
+				//		transTab);
 
 				if (e != NULL)
 				{
@@ -338,15 +445,7 @@ osbool update(wimp_event_no event,wimp_block* block)
 
 int main()
 {
-    // Initialize log file
-    logFile = fopen("logFile", "w");
-    if (logFile == NULL)
-    { 
-        perror("Error opening log file");
-        return EXIT_FAILURE;
-    }
-    fprintf(logFile, "Starting Application\n");
-  
+
     wimp_event_no event;
     wimp_block block;
     osbool quit = FALSE;
@@ -355,15 +454,28 @@ int main()
 
     wimp_initialise(wimp_VERSION_RO3,"Example App",NULL,NULL);
 	updateModeInfo();
-	area = loadSpriteFile("Images.ScroogeMcDuck.Sprites.IdleLeft");
+
     buildWindow(&window,numIcons);
     loadWindowIntoBlock(&window,&block);
 	
+	// Initialize log file
+    logFile = fopen("logFile", "w");
+    if (logFile == NULL)
+    { 
+        perror("Error opening log file");
+        return EXIT_FAILURE;
+    }
+    fprintf(logFile, "Starting Application\n");
+	
+	Object temp = createObject(PLAYER,750,750);
+	objects[0] = &temp;
+	
 	initialiseTimer();
-	initialiseGame(&state);
 		
 	fprintf(logFile,"Opening window...\n");
 	fflush(logFile);
+	
+	
     os_error *err = xwimp_open_window(&block.open);
     if (err != NULL)
     {
@@ -372,7 +484,7 @@ int main()
     }
 	
     while(!quit)
-    {		
+    {
 		event = wimp_poll(0,&block,NULL);
 		if (event == wimp_NULL_REASON_CODE)
 		{
@@ -386,6 +498,7 @@ int main()
 	
     free(window);
     wimp_close_down(0);
+	free(area);
     fclose(logFile);
     return 0;
 }

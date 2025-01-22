@@ -1,25 +1,50 @@
+#include "Utils.h"
+#include "oslib/osfile.h"
+#include "oslib/osspriteop.h"                    
+#include "oslib/colourtrans.h"
+
+
+
+
+typedef struct RenderBox
+{
+	int minX;
+	int minY;
+	int maxX;
+	int maxY;
+}RenderBox;
 //Game Logic===============================================
-typedef struct 
+typedef struct
 {                                       
-   //osspriteop_header *sprite;
-
+   osspriteop_header *currentSprite;
    int x, y;   // coordinates of the sprite
-
+   osspriteop_trans_tab *transTab;
    //int dx, dy;  // velocity of invader
-
    //int frame;
-}
-GameState;
-                                    
-extern GameState state;
+   osspriteop_area *area;
+   
+   int spriteArraySize;
+   RenderBox renderBox;
+   int redraw;
+   osspriteop_header *sprites[10];
+}Object;
 
-void initialiseGame(GameState *state);
-                
-void updateGame(void *ws,wimp_block* block);
+typedef enum objectTypes
+{
+	PLAYER,
+	SPIDER
+}objectTypes;
+
+int destroyObject(Object* obj); 
+
+//Object createObject(objectTypes type, int x, int y);
+Object createObject(objectTypes type, int x, int y);
+
+void updateGame(wimp_block* block);
 //Timer====================================================
 void initialiseTimer();
 
-void setTimer(int cs, void (*callback)(void*,wimp_block*), void *ws);
+void setTimer(int cs, void (*callback)(wimp_block*));
 
 void updateTimer();
 
@@ -32,4 +57,7 @@ extern os_factors factors;
 
 extern osspriteop_trans_tab *transTab;
 
-osspriteop_area* loadSpriteFile(const char *filename);
+void loadSpriteFile(const char *filename,Object* obj,const char *imageNames[],const int imagesSize);
+
+//State Machine==============================================
+void getState(Object* obj);
