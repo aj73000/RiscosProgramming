@@ -1,14 +1,15 @@
 #include "Program.h"
 
 FILE *logFile;
-
+int frame = 0;
 //Store all the objects (player,enemies) create a dynamic array for this
 
 Object* objects[1];
 //Game Logic======================================================================
 void updateGame(wimp_block* block)
 {                                                                
-   //state->frame++; 
+   //state->frame++;
+   frame = frame < 0 ? 0 : ++frame;
 	
    //if (state->frame%4 == 0)
    //{
@@ -37,49 +38,30 @@ void updateGame(wimp_block* block)
    //state->y += state->dy;
    for(int i=0;i<sizeof(objects)/sizeof(objects[0]);i++)
    {
-	   wimp_force_redraw(block->open.w,objects[i]->renderBox.minX,objects[i]->renderBox.minY,
+	   	wimp_force_redraw(block->open.w,objects[i]->renderBox.minX,objects[i]->renderBox.minY,
 		objects[i]->renderBox.maxX,objects[i]->renderBox.maxY);
 		
 		
 		//Update the postition and the renderBox for the objects
-		objects[i]->x = objects[i]->x > -50 ? objects[i]->x - 4 : 2400;
-		objects[i]->renderBox.minX = objects[i]->x - 50;
-		objects[i]->renderBox.minY = objects[i]->y - 50;
-		objects[i]->renderBox.maxX = objects[i]->x + 50;
-		objects[i]->renderBox.maxY = objects[i]->y + 150;
-   }
-   setTimer(4, updateGame);
-}
-
-void processKeyPress(int keyCode)
-{
-   switch (keyCode)
-   {
-      case wimp_KEY_LEFT:
-      {                 
-         //state.dx = -2 << 8;
-
-         break;
-      }
-      case wimp_KEY_RIGHT:
-      {                   
-         //state.dx = +2 << 8;
-
-         break;
-      }
-      case wimp_KEY_UP:
-      {
-         //state.dy = +2 << 8;
-
-         break;
-      }
-      case wimp_KEY_DOWN:
-      {
-         //state.dy = -2 << 8;
-
-         break;
-      }
-   }         
+		//Left
+		//objects[i]->x = objects[i]->x > -150 ? objects[i]->x - 4 : 2400;
+		//Right
+		//objects[i]->x = objects[i]->x < 2400 ? objects[i]->x + 4 : - 150;
+		
+		objects[i]->renderBox.minX = objects[i]->x;
+		objects[i]->renderBox.minY = objects[i]->y;
+		objects[i]->renderBox.maxX = objects[i]->x + objects[i]->width;
+		objects[i]->renderBox.maxY = objects[i]->y + objects[i]->height;
+		objects[i]->redraw = true;
+		
+		//objects[i]->direction = objects[i]->direction == 1 ? -1 : 1;
+		
+		int spriteNumber = getState(objects[i]);
+		//objects[i]->dx = 1;
+		// If error then 0
+		objects[i]->currentSprite = spriteNumber == -1?objects[i]->sprites[0]:objects[i]->sprites[spriteNumber];
+	}
+   setTimer(16, updateGame);
 }
 //Timer===========================================================================
 os_t timer;
@@ -170,18 +152,25 @@ void updateModeInfo()
 Object createObject(objectTypes type, int x, int y)
 {
 	Object obj;
+	RenderBox box;
 	obj.x = x;
 	obj.y = y;
-	obj.redraw = 0;
+	obj.dx = 0;
+	obj.id = type;
+	obj.redraw = true;
 	switch (type)
 	{
 		case PLAYER:
 		{
-			const char *images[1] = {"idleright"};
+			const char *images[6] = {"idleleft","walkingleft0","walkingleft1","walkingleft2","walkingleft1",
+									 "idleright"};
 			const int size = sizeof(images)/sizeof(images[0]);
-			RenderBox box = {x-50,y-50,x+50,y+150};
-			obj.renderBox = box;
-			loadSpriteFile("Images.ScroogeMcDuck.Sprites.Idle",&obj,images,size);
+			obj.width = 150;obj.height = 150;
+			box.minX = x;
+			box.minY = y;
+			box.maxX = x+obj.width;
+			box.maxY = y+obj.height;
+			loadSpriteFile("Images.ScroogeMcDuck.Sprites.States",&obj,images,size);
 			break;
 		}
 		case SPIDER:
@@ -190,10 +179,12 @@ Object createObject(objectTypes type, int x, int y)
 		}
 		default: { fprintf(stderr, "Unknown object type\n"); break; }
 	}
-	
+	//-1 is left, 1 is right
+	obj.direction = -1;
+	obj.renderBox = box;
+	obj.isGrounded = true;
 	return obj;
 }
-
 //Sprites==========================================================================
 osspriteop_area *area;
 
@@ -267,8 +258,8 @@ void loadSpriteFile(const char *filename,Object* obj,const char *imageNames[],co
    }
    
    // set up factors and translation table
-
-   factors.xmul = 1<<(modeInfo.info.xEigFactor-1);
+   //Sprite factors so width height etc
+   factors.xmul = 2<<(modeInfo.info.xEigFactor-1);
    factors.ymul = 1<<(modeInfo.info.yEigFactor);
    factors.xdiv = 1;
    factors.ydiv = 1;
@@ -318,22 +309,87 @@ void loadSpriteFile(const char *filename,Object* obj,const char *imageNames[],co
    fprintf(logFile, "finished loading sprites\n");
    fflush(logFile);
    
-   
    // Could be some issues here
    //Set all the obj values
    obj->area = area;
    obj->transTab = transTab;
-   obj->spriteArraySize = imagesSize;
-   //Fix this issue
    obj->currentSprite = sprites[0];
    memcpy(obj->sprites, sprites, imagesSize * sizeof(sprites[0]));
    free(sprites);
 }
-void getState(Object* obj)
+
+
+//Maybe change design. Not sure if this is a good idea
+int getState(Object* obj)
 {
+	enum checks
+	{
+		GROUNDED = 2,
+		MOVING = 4
+	};
 	
+	switch(obj->id)
+	{
+		//Player state
+		case PLAYER:
+		{
+			int stateNumber = 0;
+			
+			// First right sprite position * direction
+			int leftToRightSize = 5 * (obj->direction < 0 ? 0 : 1);
+			// 00000001
+			stateNumber = obj->isGrounded == true ? stateNumber + GROUNDED : stateNumber;
+			stateNumber = obj->dx > 0 ? stateNumber + MOVING : stateNumber;
+			
+			switch(stateNumber)
+			{
+				case GROUNDED:
+					return leftToRightSize;
+				case GROUNDED + MOVING:
+					//3 is number of frames for that animation
+					// 0 is the shift
+					return leftToRightSize + 1 + (frame % 4);
+				break;
+			}
+			break;
+		}
+		case SPIDER:
+			return frame % 2;
+		break;
+	}	
+	return -1;
 }
 
+void processKeyPress(int keyCode)
+{
+   switch (keyCode)
+   {
+      case wimp_KEY_LEFT:
+      {                 
+         //state.dx = -2 << 8;
+
+         break;
+      }
+      case wimp_KEY_RIGHT:
+      {                   
+         //state.dx = +2 << 8;
+
+         break;
+      }
+      case wimp_KEY_UP:
+      {
+         //state.dy = +2 << 8;
+
+         break;
+      }
+      case wimp_KEY_DOWN:
+      {
+         //state.dy = -2 << 8;
+
+         break;
+      }
+   }         
+}
 //=================================================================================
 osbool update(wimp_event_no event,wimp_block* block)
 {
@@ -375,9 +431,9 @@ osbool update(wimp_event_no event,wimp_block* block)
 				for(int i=0;i<sizeof(objects)/sizeof(objects[0]);i++)
 				{
 					//Check if the sprite is on the screen first
-					if(!objects[i]->redraw)
+					if(objects[i]->redraw)
 					{
-						if(objects[i]->x >= (draw.clip.x0 - screenX-50) && objects[i]->x <= (draw.clip.x1 - screenX))
+						if(objects[i]->x >= (draw.clip.x0 - screenX-objects[i]->width) && objects[i]->x <= (draw.clip.x1 - screenX))
 						{
 							if(objects[i]->y >= (draw.clip.y0-screenY) && objects[i]->y <= (draw.clip.y1 - screenY))
 							{
@@ -391,8 +447,7 @@ osbool update(wimp_event_no event,wimp_block* block)
 									&factors,
 									objects[i]->transTab);
 									
-								//Change to 1
-								objects[i]->redraw = 0;
+								objects[i]->redraw = false;
 							}
 						}
 					}

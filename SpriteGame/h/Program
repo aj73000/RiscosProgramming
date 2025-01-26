@@ -4,8 +4,6 @@
 #include "oslib/colourtrans.h"
 
 
-
-
 typedef struct RenderBox
 {
 	int minX;
@@ -14,28 +12,32 @@ typedef struct RenderBox
 	int maxY;
 }RenderBox;
 //Game Logic===============================================
+typedef enum objectTypes
+{
+	GROUND = 2,
+	PLAYER = 4,
+	SPIDER = 8
+}objectTypes;
+
 typedef struct
 {                                       
    osspriteop_header *currentSprite;
    int x, y;   // coordinates of the sprite
+   int width,height;
+   bool isGrounded;
+   bool redraw;
    osspriteop_trans_tab *transTab;
-   //int dx, dy;  // velocity of invader
-   //int frame;
-   osspriteop_area *area;
+   objectTypes id;
+   //-1 left, 1 right
+   int direction;
+   int dx, dy;
    
-   int spriteArraySize;
+   osspriteop_area *area;
    RenderBox renderBox;
-   int redraw;
+   
+   //Change this once dynamic array is made
    osspriteop_header *sprites[10];
 }Object;
-
-typedef enum objectTypes
-{
-	PLAYER,
-	SPIDER
-}objectTypes;
-
-int destroyObject(Object* obj); 
 
 //Object createObject(objectTypes type, int x, int y);
 Object createObject(objectTypes type, int x, int y);
@@ -60,4 +62,4 @@ extern osspriteop_trans_tab *transTab;
 void loadSpriteFile(const char *filename,Object* obj,const char *imageNames[],const int imagesSize);
 
 //State Machine==============================================
-void getState(Object* obj);
+int getState(Object* obj);
