@@ -19,6 +19,13 @@ typedef enum objectTypes
 	SPIDER = 8
 }objectTypes;
 
+
+typedef struct
+{
+	osspriteop_header *sprite;
+	int direction;
+}Sprite;
+
 typedef struct
 {                                       
    osspriteop_header *currentSprite;
@@ -36,10 +43,9 @@ typedef struct
    RenderBox renderBox;
    
    //Change this once dynamic array is made
-   osspriteop_header *sprites[10];
+   Sprite sprites[10];
 }Object;
 
-//Object createObject(objectTypes type, int x, int y);
 Object createObject(objectTypes type, int x, int y);
 
 void updateGame(wimp_block* block);

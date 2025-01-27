@@ -38,30 +38,33 @@ void updateGame(wimp_block* block)
    //state->y += state->dy;
    for(int i=0;i<sizeof(objects)/sizeof(objects[0]);i++)
    {
-	   	wimp_force_redraw(block->open.w,objects[i]->renderBox.minX,objects[i]->renderBox.minY,
-		objects[i]->renderBox.maxX,objects[i]->renderBox.maxY);
-		
-		
-		//Update the postition and the renderBox for the objects
-		//Left
-		//objects[i]->x = objects[i]->x > -150 ? objects[i]->x - 4 : 2400;
-		//Right
-		//objects[i]->x = objects[i]->x < 2400 ? objects[i]->x + 4 : - 150;
-		
-		objects[i]->renderBox.minX = objects[i]->x;
-		objects[i]->renderBox.minY = objects[i]->y;
+		objects[i]->x = objects[i]->x + (objects[i]->direction * objects[i]->dx);
+		objects[i]->renderBox.minX = objects[i]->x - objects[i]->width;
+		objects[i]->renderBox.minY = objects[i]->y - objects[i]->height;
 		objects[i]->renderBox.maxX = objects[i]->x + objects[i]->width;
 		objects[i]->renderBox.maxY = objects[i]->y + objects[i]->height;
 		objects[i]->redraw = true;
 		
-		//objects[i]->direction = objects[i]->direction == 1 ? -1 : 1;
+		if(objects[i]->x < -150 || objects[i]->x > 2400)
+			objects[i]->direction = objects[i]->direction == 1 ? -1 : 1;
 		
 		int spriteNumber = getState(objects[i]);
-		//objects[i]->dx = 1;
+		
+		if(objects[i]->direction != objects[i]->sprites[spriteNumber].direction)
+		{
+			osspriteop_flip_about_yaxis(osspriteop_PTR,objects[i]->area,(osspriteop_id)objects[i]->sprites[spriteNumber].sprite);
+			objects[i]->sprites[spriteNumber].direction = objects[i]->direction;
+		}
+
+		objects[i]->dx = 30;
 		// If error then 0
-		objects[i]->currentSprite = spriteNumber == -1?objects[i]->sprites[0]:objects[i]->sprites[spriteNumber];
+		objects[i]->currentSprite = spriteNumber == -1 ? objects[i]->sprites[0].sprite : objects[i]->sprites[spriteNumber].sprite;
+		
+		wimp_force_redraw(block->open.w,objects[i]->renderBox.minX,objects[i]->renderBox.minY,
+		objects[i]->renderBox.maxX,objects[i]->renderBox.maxY);
+		
 	}
-   setTimer(16, updateGame);
+   setTimer(24, updateGame);
 }
 //Timer===========================================================================
 os_t timer;
@@ -71,7 +74,7 @@ void (*timerCallback)(wimp_block*);
 
 void initialiseTimer()
 {
-   setTimer(64, updateGame);
+   setTimer(24, updateGame);
 }
 //Set the timer values
 void setTimer(int cs, void (*callback)(wimp_block*))
@@ -133,7 +136,6 @@ void updateModeInfo()
 
    os_error *e = xos_read_vdu_variables((os_vdu_var_list*)modeInfo.numbers, 
                                         modeInfo.numbers);
-
    if (e != NULL)
    {
       fprintf(logFile, "VDU variables:\n"
@@ -162,8 +164,7 @@ Object createObject(objectTypes type, int x, int y)
 	{
 		case PLAYER:
 		{
-			const char *images[6] = {"idleleft","walkingleft0","walkingleft1","walkingleft2","walkingleft1",
-									 "idleright"};
+			const char *images[5] = {"idleleft","walkingleft0","walkingleft1","walkingleft2","walkingleft3"};
 			const int size = sizeof(images)/sizeof(images[0]);
 			obj.width = 150;obj.height = 150;
 			box.minX = x;
@@ -237,7 +238,7 @@ void loadSpriteFile(const char *filename,Object* obj,const char *imageNames[],co
    
    
    // This may cause unknown behaviour may need to change
-   osspriteop_header *sprites[imagesSize];
+   Sprite sprites[imagesSize];
    
    for(int i = 0; i < imagesSize ; i++)
    {
@@ -246,8 +247,9 @@ void loadSpriteFile(const char *filename,Object* obj,const char *imageNames[],co
 		e = xosspriteop_select_sprite(osspriteop_USER_AREA, 
 								area, 
                                (osspriteop_id)imageNames[i],
-                               &sprites[i]);
-
+                               &(sprites[i].sprite));
+							   
+		sprites[i].direction = -1;
 		if (e != NULL)
 		{
 			free(area);
@@ -297,7 +299,7 @@ void loadSpriteFile(const char *filename,Object* obj,const char *imageNames[],co
                                     NULL,
                                     NULL,
                                     &size);
-
+	
    if (e != NULL)
    {
       fprintf(logFile, "xcolourtrans_generate_table #2 failed\n"
@@ -305,7 +307,6 @@ void loadSpriteFile(const char *filename,Object* obj,const char *imageNames[],co
       fflush(logFile);
    }
    // all done
-
    fprintf(logFile, "finished loading sprites\n");
    fflush(logFile);
    
@@ -313,7 +314,7 @@ void loadSpriteFile(const char *filename,Object* obj,const char *imageNames[],co
    //Set all the obj values
    obj->area = area;
    obj->transTab = transTab;
-   obj->currentSprite = sprites[0];
+   obj->currentSprite = sprites[0].sprite;
    memcpy(obj->sprites, sprites, imagesSize * sizeof(sprites[0]));
    free(sprites);
 }
@@ -334,9 +335,6 @@ int getState(Object* obj)
 		case PLAYER:
 		{
 			int stateNumber = 0;
-			
-			// First right sprite position * direction
-			int leftToRightSize = 5 * (obj->direction < 0 ? 0 : 1);
 			// 00000001
 			stateNumber = obj->isGrounded == true ? stateNumber + GROUNDED : stateNumber;
 			stateNumber = obj->dx > 0 ? stateNumber + MOVING : stateNumber;
@@ -344,11 +342,11 @@ int getState(Object* obj)
 			switch(stateNumber)
 			{
 				case GROUNDED:
-					return leftToRightSize;
+					return 0;
 				case GROUNDED + MOVING:
-					//3 is number of frames for that animation
-					// 0 is the shift
-					return leftToRightSize + 1 + (frame % 4);
+					//4 is number of frames for that animation
+					// 1 is the shift
+					return 1 + (frame % 4);
 				break;
 			}
 			break;
@@ -522,7 +520,7 @@ int main()
     }
     fprintf(logFile, "Starting Application\n");
 	
-	Object temp = createObject(PLAYER,750,750);
+	Object temp = createObject(PLAYER,750,0);
 	objects[0] = &temp;
 	
 	initialiseTimer();

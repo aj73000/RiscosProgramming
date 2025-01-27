@@ -1,6 +1,5 @@
 #include "oslib/wimp.h"
 #include "oslib/os.h"
-#include "oslib/draw.h"
 #include<stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
