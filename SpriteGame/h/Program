@@ -49,6 +49,8 @@ typedef struct
 Object createObject(objectTypes type, int x, int y);
 
 void updateGame(wimp_block* block);
+
+extern wimp_w gameWindow;
 //Timer====================================================
 void initialiseTimer();
 
@@ -56,7 +58,6 @@ void setTimer(int cs, void (*callback)(wimp_block*));
 
 void updateTimer();
 
-extern wimp_w gameWindow;
 //Sprites===================================================
 extern osspriteop_area *area;
 

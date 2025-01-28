@@ -1,0 +1,2 @@
+Set DuckTalesNES$Dir <Obey$Dir>
+Run <DuckTalesNES$Dir>.RunImage

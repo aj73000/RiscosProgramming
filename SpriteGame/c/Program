@@ -2,6 +2,7 @@
 
 FILE *logFile;
 int frame = 0;
+const int numberOfDucks = 1;
 wimp_w gameWindow;
 //Store all the objects (player,enemies) create a dynamic array for this
 
@@ -37,9 +38,11 @@ void updateGame(wimp_block* block)
 
    //state->x += state->dx;
    //state->y += state->dy;
+   
    for(int i=0;i<sizeof(objects)/sizeof(objects[0]);i++)
    {
-		objects[i]->x = objects[i]->x + (objects[i]->direction * objects[i]->dx);
+		objects[i]->x += (objects[i]->direction * objects[i]->dx);
+		
 		objects[i]->renderBox.minX = objects[i]->x - objects[i]->width;
 		objects[i]->renderBox.minY = objects[i]->y - objects[i]->height;
 		objects[i]->renderBox.maxX = objects[i]->x + objects[i]->width;
@@ -56,16 +59,13 @@ void updateGame(wimp_block* block)
 			osspriteop_flip_about_yaxis(osspriteop_PTR,objects[i]->area,(osspriteop_id)objects[i]->sprites[spriteNumber].sprite);
 			objects[i]->sprites[spriteNumber].direction = objects[i]->direction;
 		}
-
-		//objects[i]->dx = 30;
 		// If error then 0
 		objects[i]->currentSprite = spriteNumber == -1 ? objects[i]->sprites[0].sprite : objects[i]->sprites[spriteNumber].sprite;
 		
 		wimp_force_redraw(gameWindow,objects[i]->renderBox.minX,objects[i]->renderBox.minY,
 		objects[i]->renderBox.maxX,objects[i]->renderBox.maxY);
-		
 	}
-   setTimer(24, updateGame);
+   setTimer(16, updateGame);
 }
 //Timer===========================================================================
 os_t timer;
@@ -75,7 +75,7 @@ void (*timerCallback)(wimp_block*);
 
 void initialiseTimer()
 {
-   setTimer(24, updateGame);
+   setTimer(16, updateGame);
 }
 //Set the timer values
 void setTimer(int cs, void (*callback)(wimp_block*))
@@ -172,7 +172,7 @@ Object createObject(objectTypes type, int x, int y)
 			box.minY = y;
 			box.maxX = x+obj.width;
 			box.maxY = y+obj.height;
-			loadSpriteFile("Images.ScroogeMcDuck.Sprites.States",&obj,images,size);
+			loadSpriteFile("<DuckTalesNES$Dir>.Images.ScroogeMcDuck.Sprites.States",&obj,images,size);
 			break;
 		}
 		case SPIDER:
@@ -277,7 +277,6 @@ void loadSpriteFile(const char *filename,Object* obj,const char *imageNames[],co
                                        NULL,
                                        NULL,
                                        &size);
-
    if (e != NULL)
    {
       fprintf(logFile, "xcolourtrans_generate_table #1 failed\n"
@@ -348,7 +347,10 @@ int getState(Object* obj)
 					//4 is number of frames for that animation
 					// 1 is the shift
 					return 1 + (frame % 4);
-				break;
+				//Change to match the jumping animation
+				case MOVING:
+				default:
+					return -1;
 			}
 			break;
 		}
@@ -365,16 +367,15 @@ void processKeyPress(int keyCode)
    {
       case wimp_KEY_LEFT:
       {                 
-         //state.dx = -2 << 8;
-         objects[0]->dx = 30;
-         objects[0]->direction = -1;
+         objects[0]->dx = 20;
+		 objects[0]->direction = -1;
          break;
       }
       case wimp_KEY_RIGHT:
       {                   
-          objects[0]->dx = 30;
-          objects[0]->direction = 1;
-
+         //state.dx = +2 << 8;
+		 objects[0]->dx = 20;
+		 objects[0]->direction = 1;
          break;
       }
       case wimp_KEY_UP:
@@ -400,7 +401,6 @@ osbool update(wimp_event_no event,wimp_block* block)
 		{
 			fprintf(logFile, "MOUSE_CLICK received.\n"); 
 			fflush(logFile);
-
 			break;
 		}
 		case wimp_KEY_PRESSED:
@@ -409,7 +409,6 @@ osbool update(wimp_event_no event,wimp_block* block)
 			fflush(logFile);
 
 			processKeyPress(block->key.c);
-
 			break;
 		}
 		case wimp_REDRAW_WINDOW_REQUEST:
@@ -422,8 +421,10 @@ osbool update(wimp_event_no event,wimp_block* block)
 			draw.box = block->redraw.box;
 			
 			// Theses are the position of the bottom left of the screen
+			
 			int screenX = (*block).open.visible.x0;
 			int screenY = (*block).open.visible.y0;
+			
 			int more;
 			xwimp_redraw_window(&draw, &more);
 			while (more)
@@ -469,18 +470,17 @@ osbool update(wimp_event_no event,wimp_block* block)
 					"   errnum = %d: message = '%s'\n", e->errnum, e->errmess);
 					fflush(logFile);
 				}
-
 				xwimp_get_rectangle(&draw, &more);
 			}
 			break;
 		}
 		case wimp_OPEN_WINDOW_REQUEST:
 		{
-		        fprintf(logFile, "OPEN_WINDOW_REQUEST received.\n");                
+			fprintf(logFile, "OPEN_WINDOW_REQUEST received.\n");                
 			fflush(logFile);
 			wimp_open_window(&block->open);
 			break;
-		}	
+		}
 		case wimp_CLOSE_WINDOW_REQUEST:
 		{
 			fprintf(logFile, "CLOSE_WINDOW_REQUEST received.\n");                                         
@@ -490,11 +490,11 @@ osbool update(wimp_event_no event,wimp_block* block)
 		}
 		case wimp_USER_MESSAGE:
 		{
-		  break;
+			break;
 		}
 		case wimp_USER_MESSAGE_RECORDED:
 		{
-		        fprintf(logFile, "USER_MESSAGE_RECORDED received.\n");                            
+			fprintf(logFile, "USER_MESSAGE_RECORDED received.\n");                            
 			fflush(logFile);
 			if(block->message.action == message_QUIT)
 			{
@@ -503,26 +503,26 @@ osbool update(wimp_event_no event,wimp_block* block)
 				return TRUE;
 			}
 			break;
-		}	
+		}
 	}
 	return FALSE;
 }
 
 int main()
 {
-
     wimp_event_no event;
     wimp_block block;
     osbool quit = FALSE;
     wimp_window *window;
     int numIcons = 0;
 
-    wimp_initialise(wimp_VERSION_RO3,"Example App",NULL,NULL);
-    updateModeInfo();
+    wimp_initialise(wimp_VERSION_RO3,"DuckTales",NULL,NULL);
+	updateModeInfo();
 
     buildWindow(&window,numIcons);
     loadWindowIntoBlock(&window,&block);
-    gameWindow = block.open.w;
+	gameWindow = block.open.w;
+	
 	// Initialize log file
     logFile = fopen("logFile", "w");
     if (logFile == NULL)
@@ -531,15 +531,19 @@ int main()
         return EXIT_FAILURE;
     }
     fprintf(logFile, "Starting Application\n");
-	
-	Object temp = createObject(PLAYER,750,0);
-	objects[0] = &temp;
+
+	//Testing multiple ducks
+	for(int i = 0; i< numberOfDucks;i++)
+	{
+		Object* temp = malloc(sizeof(Object));
+		*temp = createObject(PLAYER,(i*100),0);
+		objects[i] = temp;
+	}
 	
 	initialiseTimer();
 		
 	fprintf(logFile,"Opening window...\n");
 	fflush(logFile);
-	
 	
     os_error *err = xwimp_open_window(&block.open);
     if (err != NULL)
@@ -560,6 +564,9 @@ int main()
 			quit = update(event,&block);	
 		}		
     }
+	
+	for(int i=0;i<sizeof(objects)/sizeof(objects[0]);i++)
+		free(objects[i]);
 	
     free(window);
     wimp_close_down(0);
