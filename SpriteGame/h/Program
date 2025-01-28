@@ -56,6 +56,7 @@ void setTimer(int cs, void (*callback)(wimp_block*));
 
 void updateTimer();
 
+extern wimp_w gameWindow;
 //Sprites===================================================
 extern osspriteop_area *area;
 

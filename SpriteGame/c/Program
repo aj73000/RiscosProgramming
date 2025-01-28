@@ -2,6 +2,7 @@
 
 FILE *logFile;
 int frame = 0;
+wimp_w gameWindow;
 //Store all the objects (player,enemies) create a dynamic array for this
 
 Object* objects[1];
@@ -56,11 +57,11 @@ void updateGame(wimp_block* block)
 			objects[i]->sprites[spriteNumber].direction = objects[i]->direction;
 		}
 
-		objects[i]->dx = 30;
+		//objects[i]->dx = 30;
 		// If error then 0
 		objects[i]->currentSprite = spriteNumber == -1 ? objects[i]->sprites[0].sprite : objects[i]->sprites[spriteNumber].sprite;
 		
-		wimp_force_redraw(block->open.w,objects[i]->renderBox.minX,objects[i]->renderBox.minY,
+		wimp_force_redraw(gameWindow,objects[i]->renderBox.minX,objects[i]->renderBox.minY,
 		objects[i]->renderBox.maxX,objects[i]->renderBox.maxY);
 		
 	}
@@ -365,12 +366,14 @@ void processKeyPress(int keyCode)
       case wimp_KEY_LEFT:
       {                 
          //state.dx = -2 << 8;
-
+         objects[0]->dx = 30;
+         objects[0]->direction = -1;
          break;
       }
       case wimp_KEY_RIGHT:
       {                   
-         //state.dx = +2 << 8;
+          objects[0]->dx = 30;
+          objects[0]->direction = 1;
 
          break;
       }
@@ -472,18 +475,26 @@ osbool update(wimp_event_no event,wimp_block* block)
 			break;
 		}
 		case wimp_OPEN_WINDOW_REQUEST:
-			fprintf(logFile, "OPEN_WINDOW_REQUEST received.\n");                
+		{
+		        fprintf(logFile, "OPEN_WINDOW_REQUEST received.\n");                
 			fflush(logFile);
 			wimp_open_window(&block->open);
 			break;
+		}	
 		case wimp_CLOSE_WINDOW_REQUEST:
+		{
 			fprintf(logFile, "CLOSE_WINDOW_REQUEST received.\n");                                         
 			fflush(logFile);
 			wimp_close_window(block->close.w);
 			return TRUE;
+		}
 		case wimp_USER_MESSAGE:
+		{
+		  break;
+		}
 		case wimp_USER_MESSAGE_RECORDED:
-			fprintf(logFile, "USER_MESSAGE_RECORDED received.\n");                            
+		{
+		        fprintf(logFile, "USER_MESSAGE_RECORDED received.\n");                            
 			fflush(logFile);
 			if(block->message.action == message_QUIT)
 			{
@@ -492,6 +503,7 @@ osbool update(wimp_event_no event,wimp_block* block)
 				return TRUE;
 			}
 			break;
+		}	
 	}
 	return FALSE;
 }
@@ -506,11 +518,11 @@ int main()
     int numIcons = 0;
 
     wimp_initialise(wimp_VERSION_RO3,"Example App",NULL,NULL);
-	updateModeInfo();
+    updateModeInfo();
 
     buildWindow(&window,numIcons);
     loadWindowIntoBlock(&window,&block);
-	
+    gameWindow = block.open.w;
 	// Initialize log file
     logFile = fopen("logFile", "w");
     if (logFile == NULL)
