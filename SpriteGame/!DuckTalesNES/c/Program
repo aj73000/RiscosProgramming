@@ -172,7 +172,7 @@ Object createObject(objectTypes type, int x, int y)
 			box.minY = y;
 			box.maxX = x+obj.width;
 			box.maxY = y+obj.height;
-			loadSpriteFile("<DuckTalesNES$Dir>.Images.ScroogeMcDuck.Sprites.States",&obj,images,size);
+			loadSpriteFile("Images.ScroogeMcDuck.Sprites.States",&obj,images,size);
 			break;
 		}
 		case SPIDER:
