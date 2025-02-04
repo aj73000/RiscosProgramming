@@ -1,8 +1,6 @@
 #include "Program.h"
 
 FILE *logFile;
-int frame = 0;
-const int numberOfDucks = 1;
 wimp_w gameWindow;
 //Store all the objects (player,enemies) create a dynamic array for this
 
@@ -11,7 +9,7 @@ Object* objects[1];
 void updateGame(wimp_block* block)
 {                                                                
    //state->frame++;
-   frame = frame < 0 ? 0 : ++frame;
+   
 	
    //if (state->frame%4 == 0)
    //{
@@ -42,15 +40,13 @@ void updateGame(wimp_block* block)
    for(int i=0;i<sizeof(objects)/sizeof(objects[0]);i++)
    {
 		objects[i]->x += (objects[i]->direction * objects[i]->dx);
+		objects[i]->y += objects[i]->dy;
 		
 		objects[i]->renderBox.minX = objects[i]->x - objects[i]->width;
 		objects[i]->renderBox.minY = objects[i]->y - objects[i]->height;
 		objects[i]->renderBox.maxX = objects[i]->x + objects[i]->width;
 		objects[i]->renderBox.maxY = objects[i]->y + objects[i]->height;
 		objects[i]->redraw = true;
-		
-		if(objects[i]->x < -150 || objects[i]->x > 2400)
-			objects[i]->direction = objects[i]->direction == 1 ? -1 : 1;
 		
 		int spriteNumber = getState(objects[i]);
 		
@@ -62,10 +58,14 @@ void updateGame(wimp_block* block)
 		// If error then 0
 		objects[i]->currentSprite = spriteNumber == -1 ? objects[i]->sprites[0].sprite : objects[i]->sprites[spriteNumber].sprite;
 		
+		objects[i]->dx = objects[i]->dx<=0?0:objects[i]->dx-2.5;
+		
+		objects[i]->dy = objects[i]->isGrounded == false ?  objects[i]->dy <= -20 ? -20 : objects[i]->dy-2.5 : 0;
+		
 		wimp_force_redraw(gameWindow,objects[i]->renderBox.minX,objects[i]->renderBox.minY,
 		objects[i]->renderBox.maxX,objects[i]->renderBox.maxY);
 	}
-   setTimer(16, updateGame);
+   setTimer(4, updateGame);
 }
 //Timer===========================================================================
 os_t timer;
@@ -159,8 +159,15 @@ Object createObject(objectTypes type, int x, int y)
 	obj.x = x;
 	obj.y = y;
 	obj.dx = 0;
+	obj.dy = 0;
 	obj.id = type;
+	obj.frame = 0;
 	obj.redraw = true;
+	obj.isGrounded = true;
+	
+	//-1 is left, 1 is right
+	obj.direction = -1;
+	
 	switch (type)
 	{
 		case PLAYER:
@@ -172,19 +179,29 @@ Object createObject(objectTypes type, int x, int y)
 			box.minY = y;
 			box.maxX = x+obj.width;
 			box.maxY = y+obj.height;
-			loadSpriteFile("Images.ScroogeMcDuck.Sprites.States",&obj,images,size);
+			loadSpriteFile("<DuckTalesNES$Dir>.Images.ScroogeMcDuck.Sprites.States",&obj,images,size);
 			break;
 		}
 		case SPIDER:
 		{
 			break;
 		}
+		case MONKEY:
+		{
+			const char *images[3] = {"monkey0","monkey1","monkeydead"};
+			const int size = sizeof(images)/sizeof(images[0]);
+			obj.width = 150;obj.height = 150;
+			box.minX = x;
+			box.minY = y;
+			box.maxX = x+obj.width;
+			box.maxY = y+obj.height;
+			loadSpriteFile("<DuckTalesNES$Dir>.Images.Enemies.Monkey.Sprites.Monkey",&obj,images,size);
+			break;
+		}
 		default: { fprintf(stderr, "Unknown object type\n"); break; }
 	}
-	//-1 is left, 1 is right
-	obj.direction = -1;
 	obj.renderBox = box;
-	obj.isGrounded = true;
+	
 	return obj;
 }
 //Sprites==========================================================================
@@ -342,11 +359,14 @@ int getState(Object* obj)
 			switch(stateNumber)
 			{
 				case GROUNDED:
+					obj->frame = 0;
 					return 0;
 				case GROUNDED + MOVING:
-					//4 is number of frames for that animation
-					// 1 is the shift
-					return 1 + (frame % 4);
+				{
+					int result = 1 + (obj->frame % 16)/4;
+					obj->frame++;
+					return result;
+				}
 				//Change to match the jumping animation
 				case MOVING:
 				default:
@@ -355,7 +375,7 @@ int getState(Object* obj)
 			break;
 		}
 		case SPIDER:
-			return frame % 2;
+			return obj->frame % 2;
 		break;
 	}	
 	return -1;
@@ -365,26 +385,35 @@ void processKeyPress(int keyCode)
 {
    switch (keyCode)
    {
-      case wimp_KEY_LEFT:
+      case 0x61:
       {                 
          objects[0]->dx = 20;
 		 objects[0]->direction = -1;
          break;
       }
-      case wimp_KEY_RIGHT:
+      case 0x64:
       {                   
          //state.dx = +2 << 8;
 		 objects[0]->dx = 20;
 		 objects[0]->direction = 1;
          break;
       }
-      case wimp_KEY_UP:
+      case 0x77:
       {
          //state.dy = +2 << 8;
-
-         break;
+		 
+		//Makes an error for now will look at this later
+		
+		/*		
+		if(objects[0]->isGrounded == true)
+		{
+			objects[0]->dy = 20;
+			objects[0]->isGrounded = false;
+		}
+		*/		
+        break;
       }
-      case wimp_KEY_DOWN:
+      case 0x73:
       {
          //state.dy = -2 << 8;
 
@@ -524,7 +553,7 @@ int main()
 	gameWindow = block.open.w;
 	
 	// Initialize log file
-    logFile = fopen("logFile", "w");
+    logFile = fopen("<DuckTalesNES$Dir>.logFile", "w");
     if (logFile == NULL)
     { 
         perror("Error opening log file");
@@ -533,12 +562,14 @@ int main()
     fprintf(logFile, "Starting Application\n");
 
 	//Testing multiple ducks
-	for(int i = 0; i< numberOfDucks;i++)
-	{
-		Object* temp = malloc(sizeof(Object));
-		*temp = createObject(PLAYER,(i*100),0);
-		objects[i] = temp;
-	}
+	
+	Object* temp = malloc(sizeof(Object));
+	*temp = createObject(PLAYER,100,0);
+	objects[0] = temp;
+	
+	//temp = malloc(sizeof(Object));
+	//*temp = createObject(MONKEY,(100),250);
+	//objects[1] = temp;
 	
 	initialiseTimer();
 		

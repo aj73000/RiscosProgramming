@@ -16,7 +16,8 @@ typedef enum objectTypes
 {
 	GROUND = 2,
 	PLAYER = 4,
-	SPIDER = 8
+	SPIDER = 8,
+	MONKEY = 16
 }objectTypes;
 
 
@@ -33,6 +34,7 @@ typedef struct
    int width,height;
    bool isGrounded;
    bool redraw;
+   int frame;
    osspriteop_trans_tab *transTab;
    objectTypes id;
    //-1 left, 1 right
