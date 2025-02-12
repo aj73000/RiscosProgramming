@@ -1,8 +1,4 @@
 #include "Utils.h"
-#include "oslib/osfile.h"
-#include "oslib/osspriteop.h"                    
-#include "oslib/colourtrans.h"
-
 
 typedef struct RenderBox
 {
@@ -17,38 +13,47 @@ typedef enum objectTypes
 	GROUND = 2,
 	PLAYER = 4,
 	SPIDER = 8,
-	MONKEY = 16
+	MONKEY = 5
 }objectTypes;
-
-
-typedef struct
-{
-	osspriteop_header *sprite;
-	int direction;
-}Sprite;
 
 typedef struct
 {                                       
    osspriteop_header *currentSprite;
    int x, y;   // coordinates of the sprite
    int width,height;
-   bool isGrounded;
-   bool redraw;
    int frame;
-   osspriteop_trans_tab *transTab;
    objectTypes id;
    //-1 left, 1 right
    int direction;
    int dx, dy;
-   
-   osspriteop_area *area;
+   int spriteNumber;
    RenderBox renderBox;
-   
-   //Change this once dynamic array is made
-   Sprite sprites[10];
 }Object;
 
-Object createObject(objectTypes type, int x, int y);
+typedef struct
+{
+	Object parent;
+	osbool isGrounded;
+	
+}Player;
+
+typedef struct
+{
+	Object parent;
+	
+}Enemy;
+
+typedef struct
+{
+	osspriteop_header* sprite;
+	int direction;
+}Sprite;
+
+Player* player;
+
+Player createPlayer(int x, int y);
+
+Enemy createEnemy(objectTypes type,int x, int y);
 
 void updateGame(wimp_block* block);
 
@@ -63,13 +68,13 @@ void updateTimer();
 //Sprites===================================================
 extern osspriteop_area *area;
 
-extern osspriteop_header *duckIdle;
-
 extern os_factors factors;
 
 extern osspriteop_trans_tab *transTab;
 
-void loadSpriteFile(const char *filename,Object* obj,const char *imageNames[],const int imagesSize);
+void loadSpriteFile(const char *filename,const char *imageNames[],const int imagesSize);
 
 //State Machine==============================================
-int getState(Object* obj);
+int getPlayerState(Player* player);
+
+int getEnemyState(Enemy* enemy);

@@ -2,69 +2,119 @@
 
 FILE *logFile;
 wimp_w gameWindow;
+
+Player* player;
+
+osspriteop_area *area;
+
+os_factors factors;
+
+osspriteop_trans_tab *transTab;
+
+Sprite sprites[10];
+
+Enemy* enemies[1];
 //Store all the objects (player,enemies) create a dynamic array for this
 
-Object* objects[1];
+void processKeyPress(int keyCode)
+{
+   switch (keyCode)
+   {
+      case 65:
+      {                 
+        player->parent.dx = 20;
+		player->parent.direction = -1;
+        break;
+      }
+      case 50:
+      {                   
+		player->parent.dx = 20;
+		player->parent.direction = 1;
+        break;
+      }
+      case 33:
+      {
+		//Makes an error for now will look at this later
+		if(player->isGrounded == TRUE)
+		{
+			player->isGrounded = FALSE;
+			player->parent.dy = 20;
+		}
+        break;
+      }
+      case 81:
+      {
+         //state.dy = -2 << 8;
+
+         break;
+      }
+   }         
+}
 //Game Logic======================================================================
 void updateGame(wimp_block* block)
-{                                                                
-   //state->frame++;
+{                                                   
+   int output1;
+   int output2;
+   os_error *e = xos_byte((osbyte_op)121,33,(int)NULL ,&output1,&output2);
    
-	
-   //if (state->frame%4 == 0)
-   //{
-      //state->sprite = state->sprite == invader1 ? invader2 : invader1; 
-   //}
-
-   //if ((state->x >> 8) >= 640 - 72)
-   //{
-    //  state->dx = -(2 << 8);
-   //}                        
-   //else if ((state->x >> 8) < 0)
-   //{
-   //   state->dx = +(2 << 8);
-   //}  
-
-   //if ((state->y >> 8) >= 512 - 68)
-   //{
-   //   state->dy = -(2 << 8);
-   //}                        
-   //else if ((state->y >> 8) < 0)
-   //{
-   //   state->dy = +(2 << 8);
-   //} 
-
-   //state->x += state->dx;
-   //state->y += state->dy;
+   fprintf(logFile,"%i\n",output1);
+   fflush(logFile);
    
-   for(int i=0;i<sizeof(objects)/sizeof(objects[0]);i++)
+   if (e != NULL)
    {
-		objects[i]->x += (objects[i]->direction * objects[i]->dx);
-		objects[i]->y += objects[i]->dy;
+      fprintf(logFile, "Failed running os_byte\n"
+         "   errnum = %d: message = '%s'\n", e->errnum, e->errmess);
+      fflush(logFile);
+   }
+   else
+   {
+	   //255 is no keypress
+	   if(output1 != 255)
+	   {
+		   processKeyPress(output1);
+	   }
+   }
+   
+   int spriteNumber = 0;
+   //Update the enenmies================================================================================================
+   for(int i=0;i<sizeof(enemies)/sizeof(enemies[0]);i++)
+   {
+		enemies[i]->parent.x += (enemies[i]->parent.direction * enemies[i]->parent.dx);
+		enemies[i]->parent.y += enemies[i]->parent.dy;
+		enemies[i]->parent.renderBox.minX = enemies[i]->parent.x - enemies[i]->parent.width;
+		enemies[i]->parent.renderBox.minY = enemies[i]->parent.y - enemies[i]->parent.height;
+		enemies[i]->parent.renderBox.maxX = enemies[i]->parent.x + enemies[i]->parent.width;
+		enemies[i]->parent.renderBox.maxY = enemies[i]->parent.y + enemies[i]->parent.height;
 		
-		objects[i]->renderBox.minX = objects[i]->x - objects[i]->width;
-		objects[i]->renderBox.minY = objects[i]->y - objects[i]->height;
-		objects[i]->renderBox.maxX = objects[i]->x + objects[i]->width;
-		objects[i]->renderBox.maxY = objects[i]->y + objects[i]->height;
-		objects[i]->redraw = true;
+		spriteNumber = getEnemyState(enemies[i]);
+		enemies[i]->parent.spriteNumber = spriteNumber;
+		enemies[i]->parent.currentSprite = sprites[spriteNumber].sprite;
+		enemies[i]->parent.dx = enemies[i]->parent.dx<=0?0:enemies[i]->parent.dx-2.5;
 		
-		int spriteNumber = getState(objects[i]);
-		
-		if(objects[i]->direction != objects[i]->sprites[spriteNumber].direction)
-		{
-			osspriteop_flip_about_yaxis(osspriteop_PTR,objects[i]->area,(osspriteop_id)objects[i]->sprites[spriteNumber].sprite);
-			objects[i]->sprites[spriteNumber].direction = objects[i]->direction;
-		}
-		// If error then 0
-		objects[i]->currentSprite = spriteNumber == -1 ? objects[i]->sprites[0].sprite : objects[i]->sprites[spriteNumber].sprite;
-		
-		objects[i]->dx = objects[i]->dx<=0?0:objects[i]->dx-2.5;
-		
-		objects[i]->dy = objects[i]->isGrounded == false ?  objects[i]->dy <= -20 ? -20 : objects[i]->dy-2.5 : 0;
-		
-		wimp_force_redraw(gameWindow,objects[i]->renderBox.minX,objects[i]->renderBox.minY,
-		objects[i]->renderBox.maxX,objects[i]->renderBox.maxY);
-	}
+		//wimp_force_redraw(gameWindow,enemies[i]->parent.renderBox.minX,enemies[i]->parent.renderBox.minY,
+		//enemies[i]->parent.renderBox.maxX,enemies[i]->parent.renderBox.maxY);
+   }
+   
+  // Update the Player ================================================================================================
+   player->parent.x += (player->parent.direction * player->parent.dx);
+   player->parent.y += player->parent.dy;
+   player->parent.renderBox.minX = player->parent.x - player->parent.width;
+   player->parent.renderBox.minY = player->parent.y - player->parent.height;
+   player->parent.renderBox.maxX = player->parent.x + player->parent.width;
+   player->parent.renderBox.maxY = player->parent.y + player->parent.height;
+   
+   spriteNumber = getPlayerState(player);
+   player->parent.spriteNumber = spriteNumber;
+   player->parent.currentSprite = sprites[spriteNumber].sprite;
+   player->parent.dx = player->parent.dx<=0?0:player->parent.dx-2.5;
+   player->parent.dy = player->isGrounded == FALSE ?  player->parent.dy <= -20 ? -20 : player->parent.dy-2.5 : 0;
+   
+   //wimp_force_redraw(gameWindow,player->parent.renderBox.minX,player->parent.renderBox.minY,
+   //player->parent.renderBox.maxX,player->parent.renderBox.maxY);
+   
+   //Dirty the screen
+    wimp_force_redraw(gameWindow,0,0,2400,1600);
+   //==================================================================================================================
    setTimer(4, updateGame);
 }
 //Timer===========================================================================
@@ -152,68 +202,58 @@ void updateModeInfo()
    }
 }
 //Objects==========================================================================
-Object createObject(objectTypes type, int x, int y)
+Player createPlayer(int x, int y)
 {
-	Object obj;
+	Player player;
 	RenderBox box;
-	obj.x = x;
-	obj.y = y;
-	obj.dx = 0;
-	obj.dy = 0;
-	obj.id = type;
-	obj.frame = 0;
-	obj.redraw = true;
-	obj.isGrounded = true;
+	player.parent.x = x;
+	player.parent.y = y;
+	player.parent.dx = 0;
+	player.parent.dy = 0;
+	player.parent.id = PLAYER;
+	player.parent.frame = 0;
+	player.isGrounded = TRUE;
 	
+	player.parent.spriteNumber = 0;
 	//-1 is left, 1 is right
-	obj.direction = -1;
+	player.parent.direction = -1;
+	player.parent.currentSprite = sprites[0].sprite;
+	player.parent.width = 150;
+	player.parent.height = 150;
+	box.minX = x;
+	box.minY = y;
+	box.maxX = x+player.parent.width;
+	box.maxY = y+player.parent.height;
+	player.parent.renderBox = box;
 	
-	switch (type)
-	{
-		case PLAYER:
-		{
-			const char *images[5] = {"idleleft","walkingleft0","walkingleft1","walkingleft2","walkingleft3"};
-			const int size = sizeof(images)/sizeof(images[0]);
-			obj.width = 150;obj.height = 150;
-			box.minX = x;
-			box.minY = y;
-			box.maxX = x+obj.width;
-			box.maxY = y+obj.height;
-			loadSpriteFile("<DuckTalesNES$Dir>.Images.ScroogeMcDuck.Sprites.States",&obj,images,size);
-			break;
-		}
-		case SPIDER:
-		{
-			break;
-		}
-		case MONKEY:
-		{
-			const char *images[3] = {"monkey0","monkey1","monkeydead"};
-			const int size = sizeof(images)/sizeof(images[0]);
-			obj.width = 150;obj.height = 150;
-			box.minX = x;
-			box.minY = y;
-			box.maxX = x+obj.width;
-			box.maxY = y+obj.height;
-			loadSpriteFile("<DuckTalesNES$Dir>.Images.Enemies.Monkey.Sprites.Monkey",&obj,images,size);
-			break;
-		}
-		default: { fprintf(stderr, "Unknown object type\n"); break; }
-	}
-	obj.renderBox = box;
+	return player;
+}
+Enemy createEnemy(objectTypes type,int x, int y)
+{
+	Enemy enemy;
+	RenderBox box;
+	enemy.parent.x = x;
+	enemy.parent.y = y;
+	enemy.parent.dx = 0;
+	enemy.parent.dy = 0;
+	enemy.parent.id = type;
+	enemy.parent.frame = 0;
+	enemy.parent.spriteNumber = 0;	
+	//-1 is left, 1 is right
+	enemy.parent.direction = -1;
+	enemy.parent.currentSprite = sprites[type].sprite;
+	enemy.parent.width = 150;
+	enemy.parent.height = 150;
+	box.minX = x;
+	box.minY = y;
+	box.maxX = x+enemy.parent.width;
+	box.maxY = y+enemy.parent.height;
+	enemy.parent.renderBox = box;
 	
-	return obj;
+	return enemy;
 }
 //Sprites==========================================================================
-osspriteop_area *area;
-
-osspriteop_header *duckIdle;
-
-os_factors factors;
-
-osspriteop_trans_tab *transTab;
-
-void loadSpriteFile(const char *filename,Object* obj,const char *imageNames[],const int imagesSize)
+void loadSpriteFile(const char *filename,const char *imageNames[],const int imagesSize)
 {
    int size;
 
@@ -232,13 +272,12 @@ void loadSpriteFile(const char *filename,Object* obj,const char *imageNames[],co
          "   errnum = %d: message = '%s'\n", e->errnum, e->errmess);
       fflush(logFile);
    }
-   
    fprintf(logFile, "sprite file size = %d\n", size);
    fflush(logFile);
 
    size += sizeof(int);
    
-   osspriteop_area *area = malloc(size);
+   area = malloc(size);
 
    area->size  = size;
    area->first = 16;
@@ -253,15 +292,9 @@ void loadSpriteFile(const char *filename,Object* obj,const char *imageNames[],co
          "   errnum = %d: message = '%s'\n", e->errnum, e->errmess);
       fflush(logFile);
    }
-   
-   
-   // This may cause unknown behaviour may need to change
-   Sprite sprites[imagesSize];
-   
    for(int i = 0; i < imagesSize ; i++)
    {
 	   // determine more efficient sprite pointer ids                               
-   
 		e = xosspriteop_select_sprite(osspriteop_USER_AREA, 
 								area, 
                                (osspriteop_id)imageNames[i],
@@ -316,7 +349,6 @@ void loadSpriteFile(const char *filename,Object* obj,const char *imageNames[],co
                                     NULL,
                                     NULL,
                                     &size);
-	
    if (e != NULL)
    {
       fprintf(logFile, "xcolourtrans_generate_table #2 failed\n"
@@ -326,19 +358,10 @@ void loadSpriteFile(const char *filename,Object* obj,const char *imageNames[],co
    // all done
    fprintf(logFile, "finished loading sprites\n");
    fflush(logFile);
-   
-   // Could be some issues here
-   //Set all the obj values
-   obj->area = area;
-   obj->transTab = transTab;
-   obj->currentSprite = sprites[0].sprite;
-   memcpy(obj->sprites, sprites, imagesSize * sizeof(sprites[0]));
-   free(sprites);
 }
 
-
 //Maybe change design. Not sure if this is a good idea
-int getState(Object* obj)
+int getPlayerState(Player* player)
 {
 	enum checks
 	{
@@ -346,100 +369,55 @@ int getState(Object* obj)
 		MOVING = 4
 	};
 	
-	switch(obj->id)
+	int stateNumber;
+	// 00000001
+	stateNumber = player->isGrounded == TRUE ? GROUNDED : 0;
+	stateNumber = player->parent.dx > 0 ? stateNumber + MOVING : stateNumber;
+	
+	switch(stateNumber)
 	{
-		//Player state
-		case PLAYER:
+		case GROUNDED:
+			player->parent.frame = 0;
+			return 0;
+		case GROUNDED + MOVING:
 		{
-			int stateNumber = 0;
-			// 00000001
-			stateNumber = obj->isGrounded == true ? stateNumber + GROUNDED : stateNumber;
-			stateNumber = obj->dx > 0 ? stateNumber + MOVING : stateNumber;
-			
-			switch(stateNumber)
-			{
-				case GROUNDED:
-					obj->frame = 0;
-					return 0;
-				case GROUNDED + MOVING:
-				{
-					int result = 1 + (obj->frame % 16)/4;
-					obj->frame++;
-					return result;
-				}
-				//Change to match the jumping animation
-				case MOVING:
-				default:
-					return -1;
-			}
-			break;
+			int result = 1 + (player->parent.frame % 16)/4;
+			player->parent.frame++;
+			return result;
 		}
-		case SPIDER:
-			return obj->frame % 2;
-		break;
-	}	
-	return -1;
+		//Change to match the jumping animation
+		case MOVING:
+		{
+			
+			return 0;
+		}
+		
+		default:
+		{
+			return 0;
+		}
+	}
+	return 0;
 }
 
-void processKeyPress(int keyCode)
+int getEnemyState(Enemy* enemy)
 {
-   switch (keyCode)
-   {
-      case 0x61:
-      {                 
-         objects[0]->dx = 20;
-		 objects[0]->direction = -1;
-         break;
-      }
-      case 0x64:
-      {                   
-         //state.dx = +2 << 8;
-		 objects[0]->dx = 20;
-		 objects[0]->direction = 1;
-         break;
-      }
-      case 0x77:
-      {
-         //state.dy = +2 << 8;
-		 
-		//Makes an error for now will look at this later
-		
-		/*		
-		if(objects[0]->isGrounded == true)
+	switch (enemy->parent.id)
+	{
+		case MONKEY:
 		{
-			objects[0]->dy = 20;
-			objects[0]->isGrounded = false;
-		}
-		*/		
-        break;
-      }
-      case 0x73:
-      {
-         //state.dy = -2 << 8;
-
-         break;
-      }
-   }         
+			int result = MONKEY + (enemy->parent.frame % 8)/4;
+			enemy->parent.frame++;
+			return result;
+		}	
+	}
+	return enemy->parent.id;
 }
 //=================================================================================
 osbool update(wimp_event_no event,wimp_block* block)
 {
     switch(event)
     {
-		case wimp_MOUSE_CLICK:
-		{
-			fprintf(logFile, "MOUSE_CLICK received.\n"); 
-			fflush(logFile);
-			break;
-		}
-		case wimp_KEY_PRESSED:
-		{
-			fprintf(logFile, "KEY_PRESSED received (%#x).\n", block->key.c);
-			fflush(logFile);
-
-			processKeyPress(block->key.c);
-			break;
-		}
 		case wimp_REDRAW_WINDOW_REQUEST:
 		{
 			fprintf(logFile, "REDRAW_WINDOW_REQUEST received.\n"); 
@@ -450,55 +428,57 @@ osbool update(wimp_event_no event,wimp_block* block)
 			draw.box = block->redraw.box;
 			
 			// Theses are the position of the bottom left of the screen
-			
-			int screenX = (*block).open.visible.x0;
-			int screenY = (*block).open.visible.y0;
-			
 			int more;
 			xwimp_redraw_window(&draw, &more);
 			while (more)
 			{
+				int screenX = draw.box.x0 - draw.xscroll;
+				int screenY = draw.box.y1 - draw.yscroll;
 				os_error *e =  NULL;
-				for(int i=0;i<sizeof(objects)/sizeof(objects[0]);i++)
+				
+				//Render the enemies
+				for(int i = 0;i<sizeof(enemies)/sizeof(enemies[0]);i++)
 				{
-					//Check if the sprite is on the screen first
-					if(objects[i]->redraw)
+					if(enemies[i]->parent.direction != sprites[enemies[i]->parent.spriteNumber].direction)
 					{
-						if(objects[i]->x >= (draw.clip.x0 - screenX-objects[i]->width) && objects[i]->x <= (draw.clip.x1 - screenX))
-						{
-							if(objects[i]->y >= (draw.clip.y0-screenY) && objects[i]->y <= (draw.clip.y1 - screenY))
-							{
-								e = xosspriteop_put_sprite_scaled(osspriteop_PTR,
-									objects[i]->area,
-									(osspriteop_id)objects[i]->currentSprite,
-									screenX + objects[i]->x,
-									screenY + objects[i]->y,
-									os_ACTION_OVERWRITE |
-									osspriteop_GIVEN_WIDE_ENTRIES | 0x8,
-									&factors,
-									objects[i]->transTab);
-									
-								objects[i]->redraw = false;
-							}
-						}
+						osspriteop_flip_about_yaxis(osspriteop_PTR,area,(osspriteop_id)sprites[enemies[i]->parent.spriteNumber].sprite);
+						sprites[enemies[i]->parent.spriteNumber].direction = enemies[i]->parent.direction;
 					}
+					e = xosspriteop_put_sprite_scaled(osspriteop_PTR,
+							area,
+							(osspriteop_id)enemies[i]->parent.currentSprite,
+							screenX + enemies[i]->parent.x,
+							screenY + enemies[i]->parent.y,
+							os_ACTION_OVERWRITE |
+							osspriteop_GIVEN_WIDE_ENTRIES | 0x8,
+							&factors,
+							transTab);
+					fprintf(logFile, "Render Enemy[%i]\n",i);
+					fflush(logFile);
 				}
-				//os_error *e = xosspriteop_put_sprite_scaled(osspriteop_PTR,
-				//		area,
-				//		(osspriteop_id)duckIdle,
-				//		screenX + 100,
-				//		screenY + 100,
-				//		os_ACTION_OVERWRITE |
-				//		osspriteop_GIVEN_WIDE_ENTRIES | 0x8,
-				//		&factors,
-				//		transTab);
-
+				if(player->parent.direction != sprites[player->parent.spriteNumber].direction)
+				{
+					osspriteop_flip_about_yaxis(osspriteop_PTR,area,(osspriteop_id)sprites[player->parent.spriteNumber].sprite);
+					sprites[player->parent.spriteNumber].direction = player->parent.direction;
+				}
+				//Render the player
+				e = xosspriteop_put_sprite_scaled(osspriteop_PTR,
+							area,
+							(osspriteop_id)player->parent.currentSprite,
+							screenX + player->parent.x,
+							screenY + player->parent.y,
+							os_ACTION_OVERWRITE |
+							osspriteop_GIVEN_WIDE_ENTRIES | 0x8,
+							&factors,
+							transTab);					
+				fprintf(logFile, "Render Player\n");
+				fflush(logFile);
 				if (e != NULL)
 				{
 					fprintf(logFile, "xosspriteop_put_sprite_scaled failed\n"
 					"   errnum = %d: message = '%s'\n", e->errnum, e->errmess);
 					fflush(logFile);
-				}
+				}		
 				xwimp_get_rectangle(&draw, &more);
 			}
 			break;
@@ -561,15 +541,18 @@ int main()
     }
     fprintf(logFile, "Starting Application\n");
 
-	//Testing multiple ducks
+	const char *images[8] = {"idleleft","walkingleft0","walkingleft1","walkingleft2","walkingleft3",
+	"monkey0","monkey1","monkeydead"};
 	
-	Object* temp = malloc(sizeof(Object));
-	*temp = createObject(PLAYER,100,0);
-	objects[0] = temp;
+	const int size = sizeof(images)/sizeof(images[0]);
+	loadSpriteFile("<DuckTalesNES$Dir>.Images.States",images,size);	
 	
-	//temp = malloc(sizeof(Object));
-	//*temp = createObject(MONKEY,(100),250);
-	//objects[1] = temp;
+	player = malloc(sizeof(Player));
+	*player = createPlayer(100,0);
+	
+	Enemy* temp = malloc(sizeof(Enemy));
+	*temp = createEnemy(MONKEY,250,0);
+	enemies[0] = temp;
 	
 	initialiseTimer();
 		
@@ -592,15 +575,16 @@ int main()
 		}
 		else
 		{
-			quit = update(event,&block);	
+			quit = update(event,&block);
 		}		
     }
 	
-	for(int i=0;i<sizeof(objects)/sizeof(objects[0]);i++)
-		free(objects[i]);
+	for(int i=0;i<sizeof(enemies)/sizeof(enemies[0]);i++)
+		free(enemies[i]);
 	
     free(window);
     wimp_close_down(0);
+	free(player);
 	free(area);
     fclose(logFile);
     return 0;
