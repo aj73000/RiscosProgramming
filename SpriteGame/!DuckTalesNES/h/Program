@@ -13,7 +13,7 @@ typedef enum objectTypes
 	GROUND = 2,
 	PLAYER = 4,
 	SPIDER = 8,
-	MONKEY = 5
+	MONKEY = 6
 }objectTypes;
 
 typedef struct

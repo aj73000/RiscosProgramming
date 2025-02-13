@@ -72,6 +72,14 @@ void updateGame(wimp_block* block)
 	   if(output1 != 255)
 	   {
 		   processKeyPress(output1);
+		   if(output1 == 33)
+		   {
+			   os_error *e = xos_byte((osbyte_op)121,34,(int)NULL ,&output1,&output2);
+			   if(output1 != 255)
+			   {
+				   processKeyPress(output1);
+			   }
+		   }
 	   }
    }
    
@@ -98,6 +106,12 @@ void updateGame(wimp_block* block)
   // Update the Player ================================================================================================
    player->parent.x += (player->parent.direction * player->parent.dx);
    player->parent.y += player->parent.dy;
+   if(player->parent.y < 0)
+   {
+	   player->parent.y = 0;
+	   player->isGrounded = TRUE;
+	   player->parent.dy = 0;
+   }
    player->parent.renderBox.minX = player->parent.x - player->parent.width;
    player->parent.renderBox.minY = player->parent.y - player->parent.height;
    player->parent.renderBox.maxX = player->parent.x + player->parent.width;
@@ -377,25 +391,18 @@ int getPlayerState(Player* player)
 	switch(stateNumber)
 	{
 		case GROUNDED:
+		{
 			player->parent.frame = 0;
 			return 0;
+		}
 		case GROUNDED + MOVING:
 		{
 			int result = 1 + (player->parent.frame % 16)/4;
 			player->parent.frame++;
 			return result;
 		}
-		//Change to match the jumping animation
-		case MOVING:
-		{
-			
-			return 0;
-		}
-		
 		default:
-		{
-			return 0;
-		}
+		return 5;
 	}
 	return 0;
 }
@@ -541,7 +548,7 @@ int main()
     }
     fprintf(logFile, "Starting Application\n");
 
-	const char *images[8] = {"idleleft","walkingleft0","walkingleft1","walkingleft2","walkingleft3",
+	const char *images[9] = {"idleleft","walkingleft0","walkingleft1","walkingleft2","walkingleft3","jumpleft",
 	"monkey0","monkey1","monkeydead"};
 	
 	const int size = sizeof(images)/sizeof(images[0]);
