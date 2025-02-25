@@ -43,12 +43,6 @@ typedef struct
 	
 }Enemy;
 
-typedef struct
-{
-	osspriteop_header* sprite;
-	int direction;
-}Sprite;
-
 Player* player;
 
 Player createPlayer(int x, int y);
@@ -74,7 +68,13 @@ extern osspriteop_trans_tab *transTab;
 
 void loadSpriteFile(const char *filename,const char *imageNames[],const int imagesSize);
 
+void render(wimp_block* block);
+
 //State Machine==============================================
 int getPlayerState(Player* player);
 
 int getEnemyState(Enemy* enemy);
+
+void collisionDetection(Player* player,Enemy* enemy);
+
+void collisionResponse(Player* player,Enemy* enemy);
