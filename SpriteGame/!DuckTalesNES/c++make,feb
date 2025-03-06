@@ -1,3 +1,0 @@
-g++ -c -std=c++11 -IOSLib: -o out.o Program.c
-g++ -c -IOSLib: -o utils.o Utils.c
-g++ -o RunImage out.o utils.o -LOSLib: -lOSLib32

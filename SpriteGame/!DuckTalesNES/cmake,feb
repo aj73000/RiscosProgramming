@@ -1,3 +1,0 @@
-gcc -c -std=c99 -IOSLib: -o out.o Program.c
-gcc -c -IOSLib: -o utils.o Utils.c
-gcc -o RunImage out.o utils.o -LOSLib: -lOSLib32
