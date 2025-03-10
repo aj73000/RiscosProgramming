@@ -19,8 +19,8 @@ void buildWindow(wimp_window ** window,int numIcons)
 
   (*window)->title_fg = wimp_COLOUR_BLACK;
   (*window)->title_bg = wimp_COLOUR_LIGHT_GREY;
-  (*window)->work_fg = wimp_COLOUR_BLACK;
-  (*window)->work_bg = wimp_COLOUR_LIGHT_GREY; 
+  (*window)->work_fg = wimp_COLOUR_WHITE;
+  (*window)->work_bg = wimp_COLOUR_BLACK; 
   (*window)->scroll_outer = wimp_COLOUR_MID_LIGHT_GREY;
   (*window)->scroll_inner = wimp_COLOUR_VERY_LIGHT_GREY;
   (*window)->extent.x0 = 0;

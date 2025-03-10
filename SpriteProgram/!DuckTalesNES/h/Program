@@ -1,12 +1,5 @@
 #include "Utils.h"
 
-typedef struct RenderBox
-{
-	int minX;
-	int minY;
-	int maxX;
-	int maxY;
-}RenderBox;
 //Game Logic===============================================
 typedef enum objectTypes
 {
@@ -27,7 +20,6 @@ typedef struct
    int direction;
    int dx, dy;
    int spriteNumber;
-   RenderBox renderBox;
 }Object;
 
 typedef struct
@@ -68,8 +60,6 @@ extern osspriteop_trans_tab *transTab;
 
 void loadSpriteFile(const char *filename,const char *imageNames[],const int imagesSize);
 
-void render(wimp_block* block);
-
 //State Machine==============================================
 int getPlayerState(Player* player);
 
@@ -78,3 +68,9 @@ int getEnemyState(Enemy* enemy);
 void collisionDetection(Player* player,Enemy* enemy);
 
 void collisionResponse(Player* player,Enemy* enemy);
+
+void updateWindow(wimp_w window,Object obj);
+void updateRender(wimp_draw *draw, int more,Object obj);
+
+void redrawWindow(wimp_block *block);
+void render(wimp_draw *draw, int more);
