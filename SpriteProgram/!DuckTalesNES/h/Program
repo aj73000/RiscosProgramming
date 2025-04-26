@@ -5,9 +5,14 @@ typedef enum objectTypes
 {
 	GROUND = 2,
 	PLAYER = 4,
-	SPIDER = 8,
-	MONKEY = 6
+	SPIDER = 6,
+	MONKEY = 8
 }objectTypes;
+
+typedef struct
+{
+	osspriteop_header *currentBackground;
+}gameState;
 
 typedef struct
 {                                       
@@ -15,24 +20,25 @@ typedef struct
    int x, y;   // coordinates of the sprite
    int width,height;
    int frame;
+   osbool isDead;
    objectTypes id;
    //-1 left, 1 right
    int direction;
    int dx, dy;
-   int spriteNumber;
 }Object;
 
 typedef struct
 {
 	Object parent;
 	osbool isGrounded;
+	osbool isAttacking;
+	osbool isCrouching;
 	
 }Player;
 
 typedef struct
 {
 	Object parent;
-	
 }Enemy;
 
 Player* player;
@@ -41,9 +47,15 @@ Player createPlayer(int x, int y);
 
 Enemy createEnemy(objectTypes type,int x, int y);
 
+Object createGround(int x1,int x2,int y1,int y2);
+
 void updateGame(wimp_block* block);
 
 extern wimp_w gameWindow;
+
+extern gameState state;
+
+extern int numberOfBackgrounds;
 //Timer====================================================
 void initialiseTimer();
 
@@ -65,12 +77,15 @@ int getPlayerState(Player* player);
 
 int getEnemyState(Enemy* enemy);
 
-void collisionDetection(Player* player,Enemy* enemy);
+void collisionDetection(Player* player,Object* object);
 
-void collisionResponse(Player* player,Enemy* enemy);
+void collisionResponse(Player* player,Object* object);
 
-void updateWindow(wimp_w window,Object obj);
+void updateWindow(wimp_w* window,Object obj);
 void updateRender(wimp_draw *draw, int more,Object obj);
 
 void redrawWindow(wimp_block *block);
 void render(wimp_draw *draw, int more);
+
+void* redrawBackground(wimp_w* window);
+void backgroundRender(wimp_draw *draw, int more);
