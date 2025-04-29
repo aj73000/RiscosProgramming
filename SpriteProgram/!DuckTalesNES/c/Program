@@ -6,9 +6,6 @@ int numberOfBackgrounds = 1;
 int backgroundPositionX = 500;
 int oldBackgroundPositionX = 0;
 
-
-float backgroundImageToSpriteScaleFactor = (350.0f + 1950.0f)/289.0f;
-
 int backgroundYShift = 1950;
 gameState state;
 
@@ -37,8 +34,8 @@ enum
 const int numEnemies = 3;
 Enemy* enemies[3];
 
-const int numGrounds = 2;
-Object* grounds[2];
+const int numGrounds = 6;
+Object* grounds[6];
 
 //Store all the objects (player,enemies) create a dynamic array for this
 void collisionDetection(Player* player,Object* object)
@@ -51,6 +48,7 @@ void collisionDetection(Player* player,Object* object)
 		   collisionResponse(player,object);
 	   }
 }
+
 void collisionResponse(Player* player,Object* object)
 {
 	switch(object->id)
@@ -73,13 +71,65 @@ void collisionResponse(Player* player,Object* object)
 		}
 		case GROUND:
 		{
-			//Cillide with ground
-			player->parent.y = object->y+object->height;
-			player->isGrounded = TRUE;
-			player->parent.dy = 0;
+			// Assume collision has been detected between player and object
+
+			// Calculate the boundaries
+			float playerLeft   = player->parent.x;
+			float playerRight  = player->parent.x + player->parent.width;
+			float playerBottom = player->parent.y;
+			float playerTop    = player->parent.y + player->parent.height;
+
+			float objectLeft   = object->x;
+			float objectRight  = object->x + object->width;
+			float objectBottom = object->y;
+			float objectTop    = object->y + object->height;
+
+			// Compute overlap amounts on each side
+			float overlapLeft   = playerRight - objectLeft;
+			float overlapRight  = objectRight - playerLeft;
+			float overlapTop    = objectTop - playerBottom;   // penetration if landing on top
+			float overlapBottom = playerTop - objectBottom;    // penetration if hitting from below
+
+			// Find the minimum overlap distance on each axis.
+			float horizOverlap = (overlapLeft < overlapRight) ? overlapLeft : overlapRight;
+			float vertOverlap  = (overlapTop < overlapBottom)  ? overlapTop  : overlapBottom;
+			
+
+			if (vertOverlap < horizOverlap)
+			{
+
+				if (overlapTop < overlapBottom)
+				{
+					player->parent.y = objectTop;
+					player->parent.dy = 0;
+					player->isGrounded = TRUE;
+				}
+				else if (overlapBottom < overlapTop)
+				{
+					// Player is moving upward (jumping) and hits the object's underside.
+					player->parent.y = objectBottom - player->parent.height;
+				}
+			}
+			else 
+			{
+				// Resolve horizontal collision.
+				player->parent.dx *= -1;
+				if (overlapLeft < overlapRight)
+				{
+					// Player collided with the object from the left.
+					//player->parent.x = objectLeft - player->parent.width;
+				}
+				else 
+				{
+					// Collision from the right side.
+					//player->parent.x = objectRight;
+				}
+			}
+			break;
 		}
-	}
+    }
 }
+
 void processKeyPress(const int keyCode)
 {
    switch (keyCode)
@@ -188,6 +238,15 @@ void Input()
 void updateGame(wimp_block* block)
 {
    Input();
+   player->isGrounded = FALSE;
+   for(int i=0;i<numGrounds;i++)
+   {
+	   collisionDetection(player,grounds[i]);
+   }
+   for(int i=0;i<numGrounds;i++)
+   {
+		grounds[i]->x -= 2 * (player->parent.direction * player->parent.dx);
+   }
    
    //Redraw the background
    redrawBackground(&gameWindow);
@@ -210,13 +269,6 @@ void updateGame(wimp_block* block)
 		
 		updateWindow(&gameWindow,enemies[i]->parent);
    }
-   player->isGrounded = FALSE;
-   for(int i=0;i<numGrounds;i++)
-   {
-	   grounds[i]->x -= 2 * (player->parent.direction * player->parent.dx);
-	   collisionDetection(player,grounds[i]);
-   }
-   
   // Update the Player ================================================================================================
   
    player->parent.y += player->parent.dy;
@@ -767,14 +819,43 @@ int main()
 	*temp = createEnemy(MONKEY,2000,350);
 	enemies[2] = temp;
 
-	Object* groundTemp = malloc(sizeof(Object));
+	float backgroundImageToSpriteYScaleFactor = 1;//(350.0f + 1950.0f)/289.0f;
+	float backgroundImageToSpriteXScaleFactor = 1;//4375.0f/544.0f;
 	
-	*groundTemp = createGround((0*backgroundImageToSpriteScaleFactor)-backgroundPositionX,(848*backgroundImageToSpriteScaleFactor)-backgroundPositionX,0,350);
-	grounds[0] = groundTemp;
-	
-	groundTemp = malloc(sizeof(Object));
-	*groundTemp = createGround((544*backgroundImageToSpriteScaleFactor)-backgroundPositionX,(576*backgroundImageToSpriteScaleFactor)-backgroundPositionX,350,350+(15*backgroundImageToSpriteScaleFactor));
-	grounds[1] = groundTemp;
+	FILE* file = fopen("<DuckTalesNES$Dir>.GroundLocations.Level1GroundCordinates", "r");
+    char line[256];
+    if (file != NULL)
+	{
+		int lineNumber = 0;
+        while (fgets(line, sizeof(line), file))
+		{
+			float x0, x1, y0, y1;
+			if (sscanf(line, "-%f-%f", &backgroundImageToSpriteYScaleFactor, &backgroundImageToSpriteXScaleFactor) == 2)
+			{
+				fprintf(logFile, "YScaleFactor: %f\n",backgroundImageToSpriteYScaleFactor);
+				fflush(logFile);
+				fprintf(logFile, "XScaleFactor: %f\n",backgroundImageToSpriteXScaleFactor);
+				fflush(logFile);
+			}
+			else if (sscanf(line, "%f,%f,%f,%f", &x0, &x1, &y0, &y1) == 4)
+			{
+				Object* groundTemp = malloc(sizeof(Object));
+				*groundTemp = createGround((x0*backgroundImageToSpriteXScaleFactor)-backgroundPositionX,(x1*backgroundImageToSpriteXScaleFactor)-backgroundPositionX,
+				((1679-y0)*backgroundImageToSpriteYScaleFactor)-1950,
+				((1679-y1)*backgroundImageToSpriteYScaleFactor)-1950);
+				grounds[lineNumber] = groundTemp;
+				lineNumber++;
+			}
+		}
+        fclose(file);
+    }
+    else
+	{
+        // Print an error message to the standard error
+        // stream if the file cannot be opened.
+        fprintf(logFile, "Unable to open file!\n");
+		fflush(logFile);
+    }
 	
 	initialiseTimer();
 		
