@@ -5,8 +5,10 @@ wimp_w gameWindow;
 int numberOfBackgrounds = 1;
 int backgroundPositionX = 500;
 int oldBackgroundPositionX = 0;
-
 int backgroundYShift = 1950;
+int screenHeight = 1600;
+int screenWidth  = 2400;
+
 gameState state;
 
 Player* player;
@@ -34,8 +36,8 @@ enum
 const int numEnemies = 3;
 Enemy* enemies[3];
 
-const int numGrounds = 6;
-Object* grounds[6];
+const int numGrounds = 45;
+Object* grounds[45];
 
 //Store all the objects (player,enemies) create a dynamic array for this
 void collisionDetection(Player* player,Object* object)
@@ -113,16 +115,9 @@ void collisionResponse(Player* player,Object* object)
 			else 
 			{
 				// Resolve horizontal collision.
-				player->parent.dx *= -1;
-				if (overlapLeft < overlapRight)
+				if ((overlapLeft < overlapRight && (player->parent.dx * player->parent.direction) > 0) || (overlapRight < overlapLeft &&  (player->parent.dx * player->parent.direction) < 0))
 				{
-					// Player collided with the object from the left.
-					//player->parent.x = objectLeft - player->parent.width;
-				}
-				else 
-				{
-					// Collision from the right side.
-					//player->parent.x = objectRight;
+					player->parent.dx = 0;
 				}
 			}
 			break;
@@ -247,7 +242,16 @@ void updateGame(wimp_block* block)
    {
 		grounds[i]->x -= 2 * (player->parent.direction * player->parent.dx);
    }
-   
+    if(player->parent.y <= 0)
+	{
+	   player->parent.y = screenHeight;
+	   backgroundYShift -= 1950;
+	   for(int i=0;i<numGrounds;i++)
+	   {
+		   grounds[i]->y += 1950;
+	   }
+	}
+
    //Redraw the background
    redrawBackground(&gameWindow);
    
@@ -392,8 +396,8 @@ void* redrawBackground(wimp_w* window)
 	//Set the box to match the screen size
     draw.box.x0 = 0;
     draw.box.y0 = 0;
-    draw.box.x1 = 2400;
-    draw.box.y1 = 1600;
+    draw.box.x1 = screenWidth;
+    draw.box.y1 = screenHeight;
 		
 	int more;
 	xwimp_update_window(&draw,&more);
@@ -839,6 +843,7 @@ int main()
 			}
 			else if (sscanf(line, "%f,%f,%f,%f", &x0, &x1, &y0, &y1) == 4)
 			{
+				// 1679 here is the image height
 				Object* groundTemp = malloc(sizeof(Object));
 				*groundTemp = createGround((x0*backgroundImageToSpriteXScaleFactor)-backgroundPositionX,(x1*backgroundImageToSpriteXScaleFactor)-backgroundPositionX,
 				((1679-y0)*backgroundImageToSpriteYScaleFactor)-1950,
