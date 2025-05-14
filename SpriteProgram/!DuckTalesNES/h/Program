@@ -1,12 +1,13 @@
 #include "Utils.h"
-
 //Game Logic===============================================
 typedef enum objectTypes
 {
 	GROUND = 2,
 	PLAYER = 4,
 	SPIDER = 6,
-	MONKEY = 8
+	MONKEY = 10,
+	VINES = 16,
+	SPIKES = 32
 }objectTypes;
 
 typedef struct
@@ -47,7 +48,7 @@ Player createPlayer(int x, int y);
 
 Enemy createEnemy(objectTypes type,int x, int y);
 
-Object createGround(int x1,int x2,int y1,int y2);
+Object createObject(int x1,int x2,int y1,int y2,objectTypes type);
 
 void updateGame(wimp_block* block);
 
@@ -55,7 +56,6 @@ extern wimp_w gameWindow;
 
 extern gameState state;
 
-extern int numberOfBackgrounds;
 //Timer====================================================
 void initialiseTimer();
 
@@ -77,15 +77,12 @@ int getPlayerState(Player* player);
 
 int getEnemyState(Enemy* enemy);
 
-void collisionDetection(Player* player,Object* object);
+void collisionDetection(Object* player,Object* object);
 
-void collisionResponse(Player* player,Object* object);
+void collisionResponse(Object* object1, Object* object2);
 
-void updateWindow(wimp_w* window,Object obj);
-void updateRender(wimp_draw *draw, int more,Object obj);
+void updateWindow(wimp_w* window,Object* obj);
+void updateRender(wimp_draw *draw, int more,Object* obj);
 
 void redrawWindow(wimp_block *block);
 void render(wimp_draw *draw, int more);
-
-void* redrawBackground(wimp_w* window);
-void backgroundRender(wimp_draw *draw, int more);

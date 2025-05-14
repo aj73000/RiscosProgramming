@@ -1,12 +1,12 @@
 #include "Utils.h"
 
-void buildWindow(wimp_window ** window,int numIcons)
+void buildWindow(wimp_window ** window,int numIcons,int windowWidth,int wiondowHeight)
 {
   (*window) = malloc(sizeof(wimp_(*window)) + sizeof(wimp_icon) * numIcons);
   (*window)->visible.x0 = 0;
   (*window)->visible.y0 = 0;
-  (*window)->visible.x1 = 2400;
-  (*window)->visible.y1 = 1600;
+  (*window)->visible.x1 = windowWidth;
+  (*window)->visible.y1 = wiondowHeight;
   
   (*window)->xscroll = 0;
   (*window)->yscroll = 0;
@@ -25,8 +25,8 @@ void buildWindow(wimp_window ** window,int numIcons)
   (*window)->scroll_inner = wimp_COLOUR_VERY_LIGHT_GREY;
   (*window)->extent.x0 = 0;
   (*window)->extent.y0 = 0;
-  (*window)->extent.x1 = 2400;
-  (*window)->extent.y1 = 1600;
+  (*window)->extent.x1 = windowWidth;
+  (*window)->extent.y1 = wiondowHeight;
   
   (*window)->title_flags = wimp_ICON_TEXT 
 						| wimp_ICON_HCENTRED 

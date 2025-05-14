@@ -10,5 +10,5 @@
 #include "oslib/colourtrans.h"
 
 
-void buildWindow(wimp_window ** window,int numIcons);
+void buildWindow(wimp_window ** window,int numIcons,int windowWidth,int wiondowHeight);
 void loadWindowIntoBlock(wimp_window **window,wimp_block *block);
