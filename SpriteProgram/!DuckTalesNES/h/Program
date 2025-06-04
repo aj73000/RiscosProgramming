@@ -1,14 +1,28 @@
 #include "Utils.h"
+#include <stdint.h>
+
 //Game Logic===============================================
 typedef enum objectTypes
 {
 	GROUND = 2,
 	PLAYER = 4,
 	SPIDER = 6,
-	MONKEY = 10,
-	VINES = 16,
-	SPIKES = 32
+	MONKEY = 12,
+	BEE    = 15,
+	VINES  = 32,
+	SPIKES = 64
 }objectTypes;
+
+enum 
+{
+    KEY_UP     = 1 << 0,
+    KEY_DOWN   = 1 << 1,
+    KEY_LEFT   = 1 << 2,
+    KEY_RIGHT  = 1 << 3,
+    KEY_ACTION = 1 << 4
+};
+
+uint8_t keyState = 0;
 
 typedef struct
 {
@@ -25,7 +39,7 @@ typedef struct
    objectTypes id;
    //-1 left, 1 right
    int direction;
-   int dx, dy;
+   float dx, dy;
 }Object;
 
 typedef struct
@@ -34,19 +48,31 @@ typedef struct
 	osbool isGrounded;
 	osbool isAttacking;
 	osbool isCrouching;
-	
+	osbool isClimbing;
+	osbool touchedVinesThisFrame;
 }Player;
 
 typedef struct
 {
 	Object parent;
+	//For bee
+	int baseY;
+	float angle;
 }Enemy;
+
+typedef struct 
+{
+    int x, y;
+    osbool isActive;
+	objectTypes type;
+    Enemy* enemy;
+} EnemySpawnPoint;
 
 Player* player;
 
 Player createPlayer(int x, int y);
 
-Enemy createEnemy(objectTypes type,int x, int y);
+Enemy createEnemy(objectTypes type,int x, int y,int direction);
 
 Object createObject(int x1,int x2,int y1,int y2,objectTypes type);
 

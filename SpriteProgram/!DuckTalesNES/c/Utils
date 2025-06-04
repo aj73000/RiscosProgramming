@@ -35,7 +35,7 @@ void buildWindow(wimp_window ** window,int numIcons,int windowWidth,int wiondowH
   (*window)->sprite_area = 0;
   (*window)->xmin = 0;
   (*window)->ymin = 0;
-  strncpy((*window)->title_data.text,"SpriteScreen",12);
+  strncpy((*window)->title_data.text,"DuckTalesNES version",12);
   (*window)->icon_count = numIcons;
 }
 

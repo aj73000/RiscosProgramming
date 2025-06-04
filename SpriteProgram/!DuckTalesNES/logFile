@@ -1,8 +1,25 @@
 Starting Application
 loading sprites...
-sprite file size = 27580976
-colourtrans table size = 1024
+sprite file size = 27588092
+colourtrans table size = 256
 finished loading sprites
 YScaleFactor: 7.958477
 XScaleFactor: 8.042279
 Opening window...
+FPS: 1
+FPS: 42
+FPS: 50
+FPS: 49
+FPS: 50
+FPS: 49
+FPS: 50
+FPS: 49
+FPS: 49
+FPS: 49
+FPS: 49
+FPS: 49
+FPS: 49
+FPS: 49
+FPS: 49
+FPS: 50
+FPS: 49

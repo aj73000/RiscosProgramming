@@ -1,24 +1,33 @@
 #include "Program.h"
 
 //Admin values
-#define numSprites 27
+#define numSprites 36
 #define numberOfBackgrounds 1
-#define numGrounds 46
-#define numEnemies 3
+//GROUNDS+SPIKES+VINES
+#define numGrounds 113+7+11
+#define NUM_ENEMY_SPAWN_POINTS 4
+
 #define screenWidth 2400
 #define screenHeight 1600
 
 //Starting shifts in x and y
 #define BACKGROUNDYSHIFT 1950
-#define BACKGROUNDXSHIFT 500 //14000
+#define BACKGROUNDXSHIFT 1400//500
 
 //Change for different feel
-#define GRAVITY 2.5
-#define JUMP_FORCE 40
-#define ATTACK_JUMP_FORCE 55
-#define WALK_SPEED 20
-#define ENEMY_WALK_SPEED 10
+#define GRAVITY 0.75
+#define MAX_FALL_VELOCITY 15
+#define ANIMATION_UPDATE_DIVISOR 4
+//Player
+#define JUMP_FORCE 25
+#define ATTACK_JUMP_FORCE 30
+#define WALK_SPEED 4
+#define CLIMBING_SPEED 6
 
+//Enemy
+#define ENEMY_WALK_SPEED 2
+
+#define ANIMATIONFPSCOUNTERMULTIPLY 4
 
 FILE *logFile;
 wimp_w gameWindow;
@@ -26,6 +35,8 @@ wimp_w gameWindow;
 //Player starting x position
 int currentBackgroundPositionX = BACKGROUNDXSHIFT;
 int currentBackgroundYShift = BACKGROUNDYSHIFT;
+
+int shift = 0;
 
 gameState state;
 
@@ -41,11 +52,48 @@ osspriteop_trans_tab *transTab;
 
 osspriteop_header* sprites[numSprites];
 
-Enemy* enemies[numEnemies];
+//Enemy* enemies[numEnemies];
+
+EnemySpawnPoint enemySpawns[NUM_ENEMY_SPAWN_POINTS];
 
 Object* grounds[numGrounds];
 
 
+int frameCount = 0;
+os_t lastFPSTime = 0;
+
+//===================================================================================
+//FUNCTION - isOnScreen
+
+//PARAMETERS:
+//x - X position of point
+//y - Y position of point 
+
+//DESCRIPTION:
+// This function checks if a point is on the screen
+
+// RETURN: int (1 or 0)
+//===================================================================================
+int isOnScreen(int x, int y) 
+{
+    return (x >= player->parent.x-(screenWidth/2) &&
+            x <= player->parent.x+(screenWidth/2) &&
+            y >= player->parent.y - screenHeight &&
+            y <= player->parent.y + screenHeight);
+}
+
+//===================================================================================
+//FUNCTION - collisionDetection
+
+//PARAMETERS:
+//object1 - The object colliding
+//object2 - The object object1 is colliding with
+
+//DESCRIPTION:
+// This function uses AABB-AABB collision detection to determin if two objects are colliding
+
+// RETURN: void
+//===================================================================================
 void collisionDetection(Object* object1, Object* object2)
 {
     if(object1->x <= object2->x + object2->width &&
@@ -57,10 +105,24 @@ void collisionDetection(Object* object1, Object* object2)
     }
 }
 
+//===================================================================================
+//FUNCTION - collisionResponse
+
+//PARAMETERS:
+//object1 - The object colliding
+//object2 - The object object1 is colliding with
+
+//DESCRIPTION:
+// This function resolves the collision of certain collision types and does certain effects based on
+// the objects and there stats
+
+// RETURN: void
+//===================================================================================
 void collisionResponse(Object* object1, Object* object2)
 {
     switch(object2->id)
     {
+		case BEE:
         case MONKEY:
         {
             if(object1->id == PLAYER)
@@ -82,7 +144,8 @@ void collisionResponse(Object* object1, Object* object2)
             }       
             break;
         }
-        case GROUND:
+		case GROUND:
+        case SPIKES:
         {
             float object1Left = object1->x;
             float object1Right = object1->x + object1->width;
@@ -106,18 +169,25 @@ void collisionResponse(Object* object1, Object* object2)
             {
                 if (overlapTop < overlapBottom)
                 {
-                    
-
                     if(object1->id == PLAYER)
                     {
-                        ((Player*)object1)->isGrounded = TRUE;
-						object1->y = object2Top;
-						object1->dy = 0;
+                        Player* player = (Player*)object1;
+
+                        if(object2->id == SPIKES && !player->isAttacking)
+                        {
+                            player->parent.isDead = TRUE;
+							fprintf(logFile, "SPIKES\n");
+							fflush(logFile);
+                        }
+
+                        player->isGrounded = TRUE;
+                        object1->y = object2Top;
+                        object1->dy = 0;
                     }
                     else if(!object1->isDead && object1->id == MONKEY)
                     {
                         object1->dy = 0;
-						object1->y = object2Top;
+                        object1->y = object2Top;
                     }
                 }
                 else if (overlapBottom < overlapTop)
@@ -131,15 +201,59 @@ void collisionResponse(Object* object1, Object* object2)
                     || (overlapRight < overlapLeft &&  (object1->dx * object1->direction) < 0))
                 {
                     object1->dx = 0;
-					if(object1->id == MONKEY)
-					{
-						object1->direction *=-1;
-					}
+                    if(object1->id == MONKEY)
+                    {
+                        object1->direction *=-1;
+                    }
                 }
             }
             break;
         }
-    }
+		case VINES:
+		{
+			if (object1->id == PLAYER)
+			{
+				Player* player = (Player*)object1;
+				player->touchedVinesThisFrame = TRUE;
+
+				if ((keyState & KEY_UP || keyState & KEY_DOWN) && !player->isClimbing && !player->isAttacking)
+				{
+					player->isClimbing = TRUE;
+					// int desiredPlayerX = object2->x + (object2->width - player->parent.width) / 2;
+
+					// shift = player->parent.x - desiredPlayerX;
+					
+					// currentBackgroundPositionX -= shift;
+					player->parent.dx = 0;
+					player->parent.dy = 0;
+				}
+				if (player->isClimbing)
+				{
+					player->parent.dx = 0;
+					
+
+					if (keyState & KEY_UP)
+					{
+						player->parent.dy = CLIMBING_SPEED;
+					}
+					else if (keyState & KEY_DOWN)
+					{
+						player->parent.dy = -CLIMBING_SPEED;
+					}
+					else
+					{
+						player->parent.dy = 0;
+					}
+
+					if (keyState & KEY_ACTION)
+					{
+						player->isClimbing = FALSE;
+					}
+				}
+			}
+			break;
+		}
+	}
 }
 
 enum
@@ -151,6 +265,17 @@ enum
 	ACTION = 97
 };
 
+//===================================================================================
+//FUNCTION - processKeyPress
+
+//PARAMETERS:
+//keyCode - The keycode value that has been pressed
+
+//DESCRIPTION:
+// This function implements the effects of certain key presses
+
+// RETURN: void
+//===================================================================================
 void processKeyPress(const int keyCode)
 {
    switch (keyCode)
@@ -163,6 +288,7 @@ void processKeyPress(const int keyCode)
 			   player->parent.y +=1;
 			   player->parent.dy = JUMP_FORCE;
 			}
+			keyState |= KEY_UP;
 			break;
 		}
 	    case DOWN:
@@ -170,24 +296,26 @@ void processKeyPress(const int keyCode)
 			if(player->isGrounded == TRUE && !player->isAttacking)
 		    {
 				player->isCrouching = TRUE;
-			}			
+			}
+			keyState |= KEY_DOWN;
 			break;
 		}
 		case LEFT:
 		{                 
 			player->parent.dx = WALK_SPEED;
 			player->parent.direction = -1;
+			keyState &= KEY_LEFT;
 			break;
 		}
 		case RIGHT:
 		{                   
 			player->parent.dx = WALK_SPEED;
 			player->parent.direction = 1;
+			keyState |= KEY_RIGHT;
 			break;
 		}
 		case ACTION:
 		{
-			
 			if(player->isAttacking)
 		    {				
 				if(player->isGrounded)
@@ -197,6 +325,7 @@ void processKeyPress(const int keyCode)
 					player->parent.dy = ATTACK_JUMP_FORCE;
 				}
 			}
+			keyState |= KEY_ACTION;
 			break;
 		}
 		case DOWN + ACTION:
@@ -208,6 +337,16 @@ void processKeyPress(const int keyCode)
 	}         
 }
 
+
+//===================================================================================
+//FUNCTION - Input
+
+//PARAMETERS: void
+//DESCRIPTION:
+// This function checks for user input using OS_BYTE 121
+
+// RETURN:void
+//===================================================================================
 void Input()
 {
 	// Inputs keys
@@ -252,15 +391,41 @@ void Input()
 		}
 	}
 }
-//Game Logic======================================================================
+
+//===================================================================================
+//FUNCTION - updateGroundPositions
+
+//PARAMETERS:
+//player - The player
+//grounds -  The array of the grounds
+
+//DESCRIPTION:
+// This function shifts the ground colliders by a certain amount
+
+// RETURN:void
+//===================================================================================
 void updateGroundPositions(Player* player, Object** grounds)
 {
     for (int i = 0; i < numGrounds; i++)
     {
-        grounds[i]->x -= 2 * (player->parent.direction * player->parent.dx);
+        grounds[i]->x -= 2 * (player->parent.direction * player->parent.dx) + shift;
     }
 }
 
+
+//===================================================================================
+//FUNCTION - shiftObjectsVertical
+
+//PARAMETERS:
+//objects - The obejcts to shift
+//numObjects -  The size of the object array
+//shiftAmount - The amount to move them by
+
+//DESCRIPTION:
+// This function shifts the obejcts when the player falls or goes above the screen sizes
+
+// RETURN:void
+//===================================================================================
 void shiftObjectsVertical(Object** objects, int numObjects, int shiftAmount)
 {
     for (int i = 0; i < numObjects; i++)
@@ -269,71 +434,214 @@ void shiftObjectsVertical(Object** objects, int numObjects, int shiftAmount)
     }
 }
 
-void updateEnemies(Player* player, Enemy** enemies, wimp_w* gameWindow)
+//===================================================================================
+//FUNCTION - updateEnemies
+
+//PARAMETERS:
+//player - The player
+//enemies -  Array of enemies
+//gameWindow - current game window
+
+//DESCRIPTION:
+// This function updates the enemies in the array and does collision checks between the enemies and the player
+// as well as the grounds
+
+// RETURN:void
+//===================================================================================
+void updateEnemies(Player* player, wimp_w* gameWindow)
 {
-    int spriteNumber;
-    for (int i = 0; i < numEnemies; i++)
-    {
-        Enemy* enemy = enemies[i];
+	for (int i = 0; i < NUM_ENEMY_SPAWN_POINTS; i++)
+	{
+        EnemySpawnPoint* sp = &enemySpawns[i];
 
-        enemy->parent.x += (enemy->parent.direction * enemy->parent.dx) - 2 * (player->parent.direction * player->parent.dx);
-        enemy->parent.y += enemy->parent.dy;
-        enemy->parent.dx = ENEMY_WALK_SPEED;
-		enemy->parent.dy = enemy->parent.dy - GRAVITY;
-		
-        spriteNumber = getEnemyState(enemy);
-        enemy->parent.currentSprite = sprites[spriteNumber];
-
-        collisionDetection(&player->parent, &enemy->parent);
-		for (int i = 0; i < numGrounds; i++)
+        if (sp->isActive && sp->enemy != NULL)
 		{
-			collisionDetection(&enemy->parent, grounds[i]);
+			int spriteNumber;
+            Enemy* enemy = sp->enemy;
+			if(enemy->parent.id == MONKEY)
+			{
+				enemy->parent.x += enemy->parent.direction * enemy->parent.dx;
+				enemy->parent.y += enemy->parent.dy;
+				enemy->parent.dx = ENEMY_WALK_SPEED;
+				enemy->parent.dy = enemy->parent.dy - GRAVITY;
+				for (int i = 0; i < numGrounds; i++)
+				{
+					collisionDetection(&enemy->parent, grounds[i]);
+				}
+			}
+			if (enemy->parent.id == BEE)
+			{
+				if(!enemy->parent.isDead)
+				{
+					enemy->parent.dx = ENEMY_WALK_SPEED+1;
+					enemy->angle += 0.1f;
+					enemy->parent.dy = sinf(enemy->angle * 2.0f) * 40.0f;
+					enemy->parent.x += enemy->parent.direction * enemy->parent.dx;
+					enemy->parent.y = enemy->baseY + enemy->parent.dy;
+				}
+				else
+				{
+					enemy->parent.y += enemy->parent.dy;
+					enemy->parent.dx = ENEMY_WALK_SPEED;
+					enemy->parent.dy = enemy->parent.dy - GRAVITY;
+				}
+			}
+
+			spriteNumber = getEnemyState(enemy);
+			enemy->parent.currentSprite = sprites[spriteNumber];
+			
+			//Apply paralax effect on the enemies
+			enemy->parent.x += - 2 * (player->parent.direction * player->parent.dx);
+			collisionDetection(&player->parent, &enemy->parent);
+			updateWindow(gameWindow, &enemy->parent);
 		}
-        updateWindow(gameWindow, &enemy->parent);
     }
 }
 
+//===================================================================================
+//FUNCTION - updatePlayer
+
+//PARAMETERS:
+//player - The player
+//gameWindow -  current game window which is a variable that is a copy of the window from the block
+
+//DESCRIPTION:
+// This function updates the player variables and changes the sprites when the animation timer reaches a certain point
+
+// RETURN:void
+//===================================================================================
 void updatePlayer(Player* player, wimp_w* gameWindow)
 {
-    player->parent.y += player->parent.dy;
-    player->parent.dx = player->parent.dx <= 0 ? 0 : player->parent.dx - GRAVITY;
-    player->parent.dy = player->isGrounded ? 0 : (player->parent.dy <= -25 ? -25 : player->parent.dy - 3.5);
+	player->parent.y += player->parent.dy;
+	player->parent.dx = player->parent.dx <= 0 ? 0 : player->parent.dx - 2.5;
+	player->parent.dy = player->isGrounded ? 0 : (player->parent.dy <= -MAX_FALL_VELOCITY ? -MAX_FALL_VELOCITY : player->parent.dy - GRAVITY);
+	
 
-    int spriteNumber = getPlayerState(player);
-    player->parent.currentSprite = sprites[spriteNumber];
+	int spriteNumber = getPlayerState(player);
+	player->parent.currentSprite = sprites[spriteNumber];
 	player->isCrouching = player->isCrouching ? FALSE : player->isCrouching;
 	
     updateWindow(gameWindow, &player->parent);
 }
 
+
+//===================================================================================
+//FUNCTION - updateGame
+
+//PARAMETERS:
+//block - The block for the current application screen
+
+//DESCRIPTION:
+// This function implements the main game loop calling function that implement physics and then do the
+// rendering for that object
+
+// RETURN:void
+//===================================================================================
 void updateGame(wimp_block* block)
 {
+	keyState = 0;
     Input();
     player->isGrounded = FALSE;
-
     for (int i = 0; i < numGrounds; i++)
     {
         collisionDetection(&player->parent, grounds[i]);
     }
     updateGroundPositions(player, grounds);
-
+	
+	// Bounds checking=================================================================================================================
     if (player->parent.y + player->parent.height <= 0 && currentBackgroundYShift != 0)
     {
         player->parent.y += BACKGROUNDYSHIFT;
-        shiftObjectsVertical((Object**)enemies, numEnemies, BACKGROUNDYSHIFT);
+		// Shift Enemy Spawn Points
+		for (int i = 0; i < NUM_ENEMY_SPAWN_POINTS; i++)
+		{
+			EnemySpawnPoint* sp = &enemySpawns[i];
+			sp->y += BACKGROUNDYSHIFT;
+			if (sp->isActive) 
+			{
+				sp->enemy->parent.y += BACKGROUNDYSHIFT;
+			}
+		}
         shiftObjectsVertical(grounds, numGrounds, BACKGROUNDYSHIFT);
         currentBackgroundYShift -= BACKGROUNDYSHIFT;
     }
+	if (player->parent.y >= screenHeight && currentBackgroundYShift != 4)
+    {
+        player->parent.y -= BACKGROUNDYSHIFT;
+		// Shift Enemy Spawn Points
+		for (int i = 0; i < NUM_ENEMY_SPAWN_POINTS; i++)
+		{
+			EnemySpawnPoint* sp = &enemySpawns[i];
+			sp->y -= BACKGROUNDYSHIFT;
+			if (sp->isActive) 
+			{
+				sp->enemy->parent.y -= BACKGROUNDYSHIFT;
+			}
+		}
+        shiftObjectsVertical(grounds, numGrounds, -BACKGROUNDYSHIFT);
+        currentBackgroundYShift += BACKGROUNDYSHIFT;
+    }
+	if (player->isClimbing && !player->touchedVinesThisFrame)
+	{
+		player->isClimbing = FALSE;
+	}
+	player->touchedVinesThisFrame = FALSE;
 	
+	//====================================================================================================================================
+	for (int i = 0; i < NUM_ENEMY_SPAWN_POINTS; i++) 
+	{
+		EnemySpawnPoint* sp = &enemySpawns[i];
+		if (!sp->isActive && isOnScreen(sp->x, sp->y)) 
+		{
+			int direction = player->parent.direction == 1 ? -1:1;
+			int posX = player->parent.direction == 1 ? (player->parent.x + screenWidth/2) : player->parent.x - (screenWidth/2) ;
+			Enemy* temp = malloc(sizeof(Enemy));
+			*temp = createEnemy(sp->type, posX,sp->y,direction);
+			sp->enemy = temp;
+			sp->isActive = 1;
+		}
+		if (sp->isActive && (sp->enemy == NULL || !isOnScreen(sp->enemy->parent.x, sp->enemy->parent.y))) 
+		{
+			free(sp->enemy);
+			sp->enemy = NULL;
+			sp->isActive = 0;
+		}
+		sp->x += - 2 * (player->parent.direction * player->parent.dx);
+	}
+
 	//Null is used for background
     updateWindow(&gameWindow,NULL);
 
-    updateEnemies(player, enemies, &gameWindow);
+    updateEnemies(player, &gameWindow);
     updatePlayer(player, &gameWindow);
+	
+	frameCount++;
+	os_t currentTime = os_read_monotonic_time();
+    if (currentTime - lastFPSTime >= 100)
+    {
+        fprintf(logFile, "FPS: %d\n", frameCount);
+        fflush(logFile);
+        frameCount = 0;
+        lastFPSTime = currentTime;
+    }
+	shift = 0;
 
-    setTimer(4, updateGame);
+    setTimer(1, updateGame);
 }
 
+
+//===================================================================================
+//FUNCTION - updateWindow
+
+//PARAMETERS:
+//window - The game window to draw to
+//obj - Object to render
+
+//DESCRIPTION:
+// This function sets up the draw to be either the background (null passed) or an object
+
+// RETURN:void
+//===================================================================================
 void updateWindow(wimp_w* window,Object* obj)
 {
 	wimp_draw draw;
@@ -361,6 +669,20 @@ void updateWindow(wimp_w* window,Object* obj)
 	updateRender(&draw, more,obj);
 }
 
+
+//===================================================================================
+//FUNCTION - updateRender
+
+//PARAMETERS:
+//draw - The draw data
+//more - Variable that determins if we have more rectangles to render
+//obj - Object to render
+
+//DESCRIPTION:
+// This function renders the object passes in the location given draw
+
+// RETURN:void
+//===================================================================================
 void updateRender(wimp_draw *draw, int more,Object* obj)
 {
    while(more)
@@ -373,7 +695,7 @@ void updateRender(wimp_draw *draw, int more,Object* obj)
 		{
 			currentBackgroundPositionX += 2 * (player->parent.direction * player->parent.dx);
 	
-			os_error *e = xosspriteop_put_sprite_scaled(osspriteop_PTR,
+			e = xosspriteop_put_sprite_scaled(osspriteop_PTR,
 					area,
 					(osspriteop_id)state.currentBackground,
 					screenX - currentBackgroundPositionX,
@@ -411,6 +733,17 @@ void updateRender(wimp_draw *draw, int more,Object* obj)
 	}
 }
 
+//===================================================================================
+//FUNCTION - redrawWindow
+
+//PARAMETERS:
+//block - The block for the application screen data
+
+//DESCRIPTION:
+// This function sets up the draw area and the starting more value and sets off the render loop
+
+// RETURN:void
+//===================================================================================
 void redrawWindow(wimp_block *block)
 {
     int more;
@@ -419,6 +752,20 @@ void redrawWindow(wimp_block *block)
 
     render(&block->redraw, more);
 }
+
+//===================================================================================
+//FUNCTION - render
+
+//PARAMETERS:
+//draw - The draw data
+//more - Variable that determins if we have more rectangles to render
+
+//DESCRIPTION:
+// This function calls the SWIs to render the entire scene when force redraws are called or
+// at the start of the application
+
+// RETURN:void
+//===================================================================================
 void render(wimp_draw *draw, int more)
 {
    while(more)
@@ -436,18 +783,23 @@ void render(wimp_draw *draw, int more)
 						osspriteop_GIVEN_WIDE_ENTRIES,
 						&Backgroundfactors,
 						transTab);
-		//Render enemies
-		for(int i = 0;i<numEnemies;i++)
+						
+		for (int i = 0; i < NUM_ENEMY_SPAWN_POINTS; i++)
 		{
-			e = xosspriteop_put_sprite_scaled(osspriteop_PTR,
+			EnemySpawnPoint* sp = &enemySpawns[i];
+
+			if (sp->isActive && sp->enemy != NULL)
+			{
+				e = xosspriteop_put_sprite_scaled(osspriteop_PTR,
 					area,
-					(osspriteop_id)enemies[i]->parent.currentSprite,
-					screenX + enemies[i]->parent.x,
-					screenY + enemies[i]->parent.y,
+					(osspriteop_id)sp->enemy->parent.currentSprite,
+					screenX + sp->enemy->parent.x,
+					screenY + sp->enemy->parent.y,
 					os_ACTION_OVERWRITE |
 					osspriteop_GIVEN_WIDE_ENTRIES | osspriteop_USE_MASK,
 					&factors,
 					transTab);
+			}
 		}
 		//Render player
 		e = xosspriteop_put_sprite_scaled(osspriteop_PTR,
@@ -468,23 +820,56 @@ void render(wimp_draw *draw, int more)
 		xwimp_get_rectangle(draw, &more);
 	}
 }
-//Timer===========================================================================
+
 os_t timer;
 
 //Callback function pointer
 void (*timerCallback)(wimp_block*);
 
+//===================================================================================
+//FUNCTION - initialiseTimer
+
+//PARAMETERS: void
+
+//DESCRIPTION:
+// This function call the setTimer to set up the timer in main
+
+// RETURN:void
+//===================================================================================
 void initialiseTimer()
 {
    setTimer(16, updateGame);
 }
-//Set the timer values
+
+//===================================================================================
+//FUNCTION - setTimer
+
+//PARAMETERS:
+//cs - Starting wait time
+//function Pointer - Points to a function to call once the timer runs out
+
+//DESCRIPTION:
+// This function set up the timer and call back function for the timer
+
+// RETURN:void
+//===================================================================================
 void setTimer(int cs, void (*callback)(wimp_block*))
 {
    timer          = os_read_monotonic_time() + cs;
    timerCallback  = callback; 
 }
 
+//===================================================================================
+//FUNCTION - updateTimer
+
+//PARAMETERS:
+//block - The current block for the screen
+
+//DESCRIPTION:
+// This function calls the call back function (updateGame) once the time passes the timer
+
+// RETURN:void
+//===================================================================================
 void updateTimer(wimp_block* block)
 {
    if (timer > 0)
@@ -499,7 +884,7 @@ void updateTimer(wimp_block* block)
       }
    }
 }
-//Screen Mode Info=================================================================
+
 typedef union
 {        
    int numbers[14];
@@ -526,7 +911,18 @@ typedef union
 ModeInfo;                                 
 
 ModeInfo modeInfo;
-         
+
+
+//===================================================================================
+//FUNCTION - updateModeInfo
+
+//PARAMETERS: void
+
+//DESCRIPTION:
+// This function read the current screen mode values and stores them in modeInfo
+
+// RETURN:void
+//===================================================================================
 void updateModeInfo()
 {                                      
    for (int i = 0; i < 15; i++)
@@ -552,7 +948,19 @@ void updateModeInfo()
          fflush(logFile);
    }
 }
-//Objects==========================================================================
+
+//===================================================================================
+//FUNCTION - createPlayer
+
+//PARAMETERS:
+//type - The the player character
+
+//DESCRIPTION:
+// This function creates the player
+
+// RETURN:
+// Player :  The created Player
+//===================================================================================
 Player createPlayer(int x, int y)
 {
 	Player player;
@@ -565,6 +973,7 @@ Player createPlayer(int x, int y)
 	player.isGrounded = TRUE;
 	player.isAttacking = FALSE;
 	player.parent.isDead = FALSE;
+	player.isClimbing = FALSE;
 	//-1 is left, 1 is right
 	player.parent.direction = -1;
 	player.parent.currentSprite = sprites[0];
@@ -573,7 +982,19 @@ Player createPlayer(int x, int y)
 	
 	return player;
 }
-Enemy createEnemy(objectTypes type,int x, int y)
+//===================================================================================
+//FUNCTION - createEnemy
+
+//PARAMETERS:
+//type - The type of Enemy
+
+//DESCRIPTION:
+// This function creates am object for the given parameters
+
+// RETURN:
+// Object :  The created Object
+//===================================================================================
+Enemy createEnemy(objectTypes type,int x, int y, int direction)
 {
 	Enemy enemy;
 	enemy.parent.x = x;
@@ -584,16 +1005,38 @@ Enemy createEnemy(objectTypes type,int x, int y)
 	enemy.parent.frame = 0;
 	enemy.parent.isDead = FALSE;
 	//-1 is left, 1 is right
-	enemy.parent.direction = -1;
+	enemy.parent.direction = direction;
 	enemy.parent.currentSprite = sprites[type];
 	if(type == MONKEY)
 	{
 		enemy.parent.width = 225;
 		enemy.parent.height = 250;
 	}
+	if(type == BEE)
+	{
+		enemy.parent.width = 225;
+		enemy.parent.height = 250;
+		enemy.baseY = y;
+	}
 	return enemy;
 }
 
+//===================================================================================
+//FUNCTION - createObject
+
+//PARAMETERS:
+//x1 - left x position
+//x2 - right x position
+//y1 - bottom y position
+//y2 - top y position
+//type - The type of the Object to be created (e.g. GROUND, SPIKES or VINES)
+
+//DESCRIPTION:
+// This function creates am object for the given parameters
+
+// RETURN:
+// Object :  The created Object
+//===================================================================================
 Object createObject(int x1,int x2,int y1,int y2,objectTypes type)
 {
 	Object obj;
@@ -604,7 +1047,20 @@ Object createObject(int x1,int x2,int y1,int y2,objectTypes type)
 	obj.height = y2-y1;
 	return obj;
 }
-//Sprites==========================================================================
+
+//===================================================================================
+//FUNCTION - loadSpriteFile
+
+//PARAMETERS:
+//filename - The file name
+//imageNames - List of names which will also set the order that the sprites are in the sprite array
+//imagesSize - Size of the array so we don't go out of bounds
+
+//DESCRIPTION:
+// This function loads sprites from a file and generates a translation table the sprite array
+
+// RETURN: void
+//===================================================================================
 void loadSpriteFile(const char *filename,const char *imageNames[],const int imagesSize)
 {
    int size;
@@ -711,19 +1167,43 @@ void loadSpriteFile(const char *filename,const char *imageNames[],const int imag
    fflush(logFile);
 }
 
+//===================================================================================
+//FUNCTION - getPlayerState
+
+//PARAMETERS:
+//player - character that is controlled by the user
+
+//DESCRIPTION:
+// This is the animation for the player, handling direction and collidion states to
+// choose the right animation
+
+// RETURN:
+// result: The state position in the sprite array
+//===================================================================================
 int getPlayerState(Player* player)
 {
 	enum checks
 	{
-		GROUNDED = 2,
-		MOVING = 4,
-		ATTACKING = 8,
-		CROUCHING = 16
+		GROUNDED = 1<<0,
+		MOVING = 1<<1,
+		ATTACKING = 1<<2,
+		CROUCHING = 1<<3
 	};
 	int directionAddon = player->parent.direction == 1 ? (numSprites-numberOfBackgrounds)/2 : 0;
 	
+	// Climbing takes priority
+	if (player->isClimbing)
+	{
+		// Only move frames if the player is moving
+		if ((keyState & KEY_DOWN || keyState & KEY_UP))
+			player->parent.frame++;
+		
+		int result = 10 + (player->parent.frame % (4*ANIMATIONFPSCOUNTERMULTIPLY) ) / (2*ANIMATIONFPSCOUNTERMULTIPLY);
+		return result + directionAddon;
+	}
+	
+	//Movement if not climbing
 	int stateNumber;
-	// 00000001
 	stateNumber = player->isGrounded == TRUE ? GROUNDED : 0;
 	stateNumber = player->parent.dx > 0 ? stateNumber + MOVING : stateNumber;
 	stateNumber = player->isAttacking == TRUE ? stateNumber + ATTACKING : stateNumber;
@@ -733,16 +1213,19 @@ int getPlayerState(Player* player)
 	{
 		case GROUNDED:
 		{
-			player->parent.frame = directionAddon;
+			player->parent.frame = 0;
 			return directionAddon;
 		}
 		case GROUNDED + CROUCHING:
 		{
-			return 8 + directionAddon;
+			int result = (player->parent.frame < 2) ? 8 : 9;
+			player->parent.frame++;
+			return result + directionAddon;
 		}
+		case GROUNDED + CROUCHING + MOVING:
 		case GROUNDED + MOVING:
 		{
-			int result = 1 + (player->parent.frame % 16)/4;
+			int result = 1 + (player->parent.frame % (16*ANIMATIONFPSCOUNTERMULTIPLY))/(4*ANIMATIONFPSCOUNTERMULTIPLY);
 			player->parent.frame++;
 			return result + directionAddon;
 		}
@@ -754,7 +1237,6 @@ int getPlayerState(Player* player)
 		}
 		case ATTACKING:
 		case ATTACKING + MOVING:
-		
 		{
 			player->parent.frame = 6 + directionAddon;
 			return 6 + directionAddon;
@@ -765,6 +1247,19 @@ int getPlayerState(Player* player)
 	return directionAddon;
 }
 
+
+//===================================================================================
+//FUNCTION - getEnemyState
+
+//PARAMETERS:
+//enemy - current enemy that is being updated
+
+//DESCRIPTION:
+// This fuction set the correct animation for an enemy
+
+// RETURN:
+// result: The state position in the sprite array
+//===================================================================================
 int getEnemyState(Enemy* enemy)
 {
 	int directionAddon = enemy->parent.direction == 1 ? (numSprites-numberOfBackgrounds)/2 : 0;
@@ -776,14 +1271,34 @@ int getEnemyState(Enemy* enemy)
 			{
 				return MONKEY + 2 + directionAddon;
 			}
-			int result = MONKEY + (enemy->parent.frame % 8)/4;
+			int result = MONKEY + (enemy->parent.frame % (8*ANIMATIONFPSCOUNTERMULTIPLY))/(4*ANIMATIONFPSCOUNTERMULTIPLY);
 			enemy->parent.frame++;
 			return result + directionAddon;
-		}	
+		}
+		case BEE:
+		{
+			int result = BEE + (enemy->parent.frame % 4)/2;
+			enemy->parent.frame++;
+			return result + directionAddon;
+		}
 	}
 	return enemy->parent.id;
 }
-//=================================================================================
+
+
+//===================================================================================
+//FUNCTION - update
+
+//PARAMETERS:
+//event - Event recived from and got from the poll
+//block - The current block that sent the event
+
+//DESCRIPTION:
+// This function handles the events recieved by the poll request
+
+// RETURN:
+// result: This is set when the plater wants to quit
+//===================================================================================
 osbool update(wimp_event_no event,wimp_block* block)
 {
     switch(event)
@@ -819,16 +1334,27 @@ osbool update(wimp_event_no event,wimp_block* block)
 	return FALSE;
 }
 
+
+//===================================================================================
+//FUNCTION - createWorldColliders
+
+//PARAMETERS: void
+
+//DESCRIPTION:
+// This function loads and creates the objects to be collided with in the scene
+
+// RETURN:void
+//===================================================================================
 void createWorldColliders()
 {
 	float backgroundImageToSpriteYScaleFactor = 1;
 	float backgroundImageToSpriteXScaleFactor = 1;
 	
+	int lineNumber = 0;	
 	FILE* file = fopen("<DuckTalesNES$Dir>.GroundLocations.Level1GroundCoordinates", "r");
     char line[256];
     if (file != NULL)
 	{
-		int lineNumber = 0;
         while (fgets(line, sizeof(line), file))
 		{
 			float x0, x1, y0, y1;
@@ -843,9 +1369,12 @@ void createWorldColliders()
 			{
 				// 1679 here is the image height
 				Object* groundTemp = malloc(sizeof(Object));
-				*groundTemp = createObject((x0*backgroundImageToSpriteXScaleFactor)-currentBackgroundPositionX,(x1*backgroundImageToSpriteXScaleFactor)-currentBackgroundPositionX,
-				((1679-y0)*backgroundImageToSpriteYScaleFactor)-BACKGROUNDYSHIFT,
-				((1679-y1)*backgroundImageToSpriteYScaleFactor)-BACKGROUNDYSHIFT,GROUND);
+				int x0Input = (x0*backgroundImageToSpriteXScaleFactor)-currentBackgroundPositionX;
+				int x1Input = (x1*backgroundImageToSpriteXScaleFactor)-currentBackgroundPositionX;
+				int y0Input = ((1679-y0)*backgroundImageToSpriteYScaleFactor)-BACKGROUNDYSHIFT;
+				int y1Input = ((1679-y1)*backgroundImageToSpriteYScaleFactor)-BACKGROUNDYSHIFT;
+				
+				*groundTemp = createObject(x0Input,x1Input,y0Input,y1Input,GROUND);
 				grounds[lineNumber] = groundTemp;
 				lineNumber++;
 			}
@@ -854,13 +1383,84 @@ void createWorldColliders()
     }
     else
 	{
-        // Print an error message to the standard error
-        // stream if the file cannot be opened.
+        fprintf(logFile, "Unable to open file!\n");
+		fflush(logFile);
+    }
+	
+	// Spikes for level
+	file = fopen("<DuckTalesNES$Dir>.GroundLocations.Level1SpikeCoordinates", "r");
+    if (file != NULL)
+	{
+        while (fgets(line, sizeof(line), file))
+		{
+			float x0, x1, y0, y1;
+			if (sscanf(line, "%f,%f,%f,%f", &x0, &x1, &y0, &y1) == 4)
+			{
+				// 1679 here is the image height
+				Object* groundTemp = malloc(sizeof(Object));
+				int x0Input = (x0*backgroundImageToSpriteXScaleFactor)-currentBackgroundPositionX;
+				int x1Input = (x1*backgroundImageToSpriteXScaleFactor)-currentBackgroundPositionX;
+				int y0Input = ((1679-y0)*backgroundImageToSpriteYScaleFactor)-BACKGROUNDYSHIFT;
+				int y1Input = ((1679-y1)*backgroundImageToSpriteYScaleFactor)-BACKGROUNDYSHIFT;
+				
+				*groundTemp = createObject(x0Input,x1Input,y0Input,y1Input,SPIKES);
+				grounds[lineNumber] = groundTemp;
+				lineNumber++;
+			}
+		}
+        fclose(file);
+    }
+    else
+	{
+
+        fprintf(logFile, "Unable to open file!\n");
+		fflush(logFile);
+    }
+	// Spikes for level
+	file = fopen("<DuckTalesNES$Dir>.GroundLocations.Level1ClimbingCoordinates", "r");
+    if (file != NULL)
+	{
+        while (fgets(line, sizeof(line), file))
+		{
+			float x0, x1, y0, y1;
+			if (sscanf(line, "%f,%f,%f,%f", &x0, &x1, &y0, &y1) == 4)
+			{
+				// 1679 here is the image height
+				Object* groundTemp = malloc(sizeof(Object));
+				int x0Input = (x0*backgroundImageToSpriteXScaleFactor)-currentBackgroundPositionX;
+				int x1Input = (x1*backgroundImageToSpriteXScaleFactor)-currentBackgroundPositionX;
+				int y0Input = ((1679-y0)*backgroundImageToSpriteYScaleFactor)-BACKGROUNDYSHIFT;
+				int y1Input = ((1679-y1)*backgroundImageToSpriteYScaleFactor)-BACKGROUNDYSHIFT;
+				
+				*groundTemp = createObject(x0Input,x1Input,y0Input,y1Input,VINES);
+				grounds[lineNumber] = groundTemp;
+				lineNumber++;
+			}
+		}
+        fclose(file);
+    }
+    else
+	{
+
         fprintf(logFile, "Unable to open file!\n");
 		fflush(logFile);
     }
 }
 
+
+//===================================================================================
+//FUNCTION - main
+
+//PARAMETERS: void
+
+//DESCRIPTION:
+// This function is the start and entry point of the application
+// here we create all the window and objects and start the main timer loop.
+// The main loop is actually here in the while(quit) loop but the timer users other functions to
+// implement the actual functionality to keep main not too big.
+
+// RETURN: int
+//===================================================================================
 int main()
 {
     wimp_event_no event;
@@ -887,9 +1487,9 @@ int main()
     fprintf(logFile, "Starting Application\n");
 
 	const char *images[numSprites] = {"idleleft","walkingleft0","walkingleft1","walkingleft2","walkingleft3","jumpleft",
-	"bounceleft0","bounceleft1","duckingleft0","duckingleft1","monkey_l0","monkey_l1","monkey_ldead",
-	"idleright","walking_r0","walking_r1","walking_r2","walking_r3","jumpright","bounceright0","bounceright1","ducking_r_0","ducking_r_1",
-	"monkey_r0","monkey_r1","monkey_rdead","ducktalesmap"};
+	"bounceleft0","bounceleft1","duckingleft0","duckingleft1","climbleft","grableft","monkey_l0","monkey_l1","monkey_ldead","bee0_l","bee1_l",
+	"idleright","walking_r0","walking_r1","walking_r2","walking_r3","jumpright","bounceright0","bounceright1","ducking_r_0","ducking_r_1","climbright","grabright",
+	"monkey_r0","monkey_r1","monkey_rdead","bee0_r","bee1_r","rockhittable","ducktalesmap"};
 	
 	loadSpriteFile("<DuckTalesNES$Dir>.Images.States",images,numSprites);
 	
@@ -897,18 +1497,30 @@ int main()
 	
 	player = malloc(sizeof(Player));
 	*player = createPlayer(1050,350);
+	
+	enemySpawns[0] = (EnemySpawnPoint){ 2300, 400, 0, MONKEY,NULL };
+	
+	enemySpawns[1] = (EnemySpawnPoint){ 5400, 400, 0, BEE,NULL };
+	enemySpawns[2] = (EnemySpawnPoint){ 5500, 400, 0, MONKEY,NULL };
+	enemySpawns[3] = (EnemySpawnPoint){ 4500, 400, 0, BEE,NULL };
+	
+
 		
-	Enemy* temp = malloc(sizeof(Enemy));
-	*temp = createEnemy(MONKEY,1450,350);
-	enemies[0] = temp;
+	// Enemy* temp = malloc(sizeof(Enemy));
+	// *temp = createEnemy(MONKEY,1450,350);
+	// enemies[0] = temp;
 	
-	temp = malloc(sizeof(Enemy));
-	*temp = createEnemy(MONKEY,2800,350);
-	enemies[1] = temp;
+	// temp = malloc(sizeof(Enemy));
+	// *temp = createEnemy(MONKEY,2800,350);
+	// enemies[1] = temp;
 	
-	temp = malloc(sizeof(Enemy));
-	*temp = createEnemy(MONKEY,2000,350);
-	enemies[2] = temp;
+	// temp = malloc(sizeof(Enemy));
+	// *temp = createEnemy(MONKEY,2000,350);
+	// enemies[2] = temp;
+	
+	// temp = malloc(sizeof(Enemy));
+	// *temp = createEnemy(BEE,1600,350);
+	// enemies[3] = temp;
 
 	createWorldColliders();
 	
@@ -936,9 +1548,6 @@ int main()
 			quit = update(event,&block);
 		}
     }
-	
-	for(int i=0;i<numEnemies;i++)
-		free(enemies[i]);
 	
 	for(int i=0;i<numGrounds;i++)
 		free(grounds[i]);
