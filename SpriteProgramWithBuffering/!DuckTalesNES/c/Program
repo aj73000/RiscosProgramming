@@ -4,7 +4,7 @@
 #define numSprites 39
 #define numberOfBackgrounds 2
 //GROUNDS+SPIKES+VINES
-#define numGrounds 126+7+11
+#define numGrounds 127+7+11
 #define NUM_ENEMY_SPAWN_POINTS 11
 
 #define screenWidth 2400
@@ -1693,7 +1693,7 @@ int main()
 	enemySpawns[2] = (EnemySpawnPoint){ 1400, 200, 0, MONKEY,NULL};
 	enemySpawns[3] = (EnemySpawnPoint){ 2500, 450, 0, BEE,NULL};
 	
-	enemySpawns[4] = (EnemySpawnPoint){ 2550, 425, 0, BEE,NULL};
+	enemySpawns[4] = (EnemySpawnPoint){ 2650, 425, 0, BEE,NULL};
 	enemySpawns[5] = (EnemySpawnPoint){ 3000, 200, 0, BEE,NULL};
 	enemySpawns[6] = (EnemySpawnPoint){ 3000, 175, 0, MONKEY,NULL};
 	
