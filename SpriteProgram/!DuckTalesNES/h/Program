@@ -7,8 +7,8 @@ typedef enum objectTypes
 	GROUND = 2,
 	PLAYER = 4,
 	SPIDER = 6,
-	MONKEY = 12,
-	BEE    = 15,
+	MONKEY = 13,
+	BEE    = 16,
 	VINES  = 32,
 	SPIKES = 64
 }objectTypes;
@@ -50,6 +50,8 @@ typedef struct
 	osbool isCrouching;
 	osbool isClimbing;
 	osbool touchedVinesThisFrame;
+	int health;
+	osbool beenHit;
 }Player;
 
 typedef struct
@@ -107,8 +109,14 @@ void collisionDetection(Object* player,Object* object);
 
 void collisionResponse(Object* object1, Object* object2);
 
-void updateWindow(wimp_w* window,Object* obj);
-void updateRender(wimp_draw *draw, int more,Object* obj);
+void updateRender(Object* obj);
 
 void redrawWindow(wimp_block *block);
 void render(wimp_draw *draw, int more);
+
+void blitBackground(wimp_w* window);
+void backgroundBufferRender(wimp_draw *draw);
+
+void createWorldColliders();
+
+void restart();
