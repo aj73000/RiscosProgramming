@@ -271,7 +271,8 @@ void collisionResponse(Object* object1, Object* object2)
                 }
                 else if (overlapBottom < overlapTop)
                 {
-                    object1->y = object2Bottom - object1->height;
+                    object1->y = object2Bottom - object1->height - 1;
+					object1->dy = 0;
                 }
             }
             else 
